@@ -1409,6 +1409,7 @@ dependencies = [
  "blitz-paint",
  "blitz-traits",
  "pollster",
+ "url",
  "vello_gpu",
  "wgpu",
  "wgpu_context",

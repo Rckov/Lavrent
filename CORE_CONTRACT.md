@@ -10,6 +10,8 @@ Handles are opaque Lavret values. They carry enough owner, kind, slot, and gener
 
 Documents are created from owned UTF-8 HTML, author CSS sources, and an optional `lavret:` base URI. Mutations mark a document dirty. `resolve` is the only operation that consumes pending style, layout, text, media, and interaction changes. `render` rejects dirty documents and never performs CPU readback.
 
+Viewport width and height are logical CSS pixels. Offscreen physical dimensions are computed as logical size multiplied by scale factor and rounded to the nearest integer; zero, non-finite, out-of-range, and non-positive results are rejected.
+
 Blitz is the sole internal source of truth for DOM, computed style, layout, text, selection, focus, scroll, and paint state. Lavret does not keep a mirror DOM, layout tree, text representation, or paint tree.
 
 ## Resources
