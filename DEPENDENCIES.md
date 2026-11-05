@@ -2,7 +2,7 @@
 
 ## Qualified toolchain and graph
 
-The dependency qualification gate ran on 2026-11-05 with:
+The dependency graph was qualified on 2026-11-05 with:
 
 - Rust `1.91.0` commit `f8297e351a40c1439a467bbbb6879088047f50b3`;
 - Cargo `1.91.0` commit `ea2d97820c16195b0ca3fadb4319fe512c199a43`;
@@ -37,9 +37,9 @@ Blitz identifies AnyRender transitively by `branch=main`. Cargo treats the branc
 
 The normal/build graph has one AnyRender source, one production Vello GPU renderer, and only wgpu `30.0.1`. It contains no Dioxus application crate or `dioxus-native`, `blitz-shell`, `blitz-net`, Winit, Muda, file-dialog crate, Tokio, network or TLS client, JavaScript engine, Servo browser crate, Skia, Vello CPU, compute-centric `vello`, `pixels`, wgpu 29, or second renderer. Value-only `http`, `url`, and `bytes` packages introduce no network implementation.
 
-## Qualification result
+## Qualification
 
-The disposable probe passed locked metadata resolution, both dependency-tree inspections, and `cargo check --locked --target x86_64-pc-windows-msvc`. Its release smoke parsed in-memory HTML with inline and separately supplied author CSS; resolved block, Flexbox, Grid, table, float, writing-mode, and mixed Latin/Arabic layout; queried geometry and hit testing; built a Blitz Paint/AnyRender scene; and rendered without a window.
+Locked metadata resolution, both dependency-tree inspections, and `cargo check --locked --target x86_64-pc-windows-msvc` passed. The release smoke test parsed in-memory HTML with inline and author CSS, resolved block, Flexbox, Grid, table, float, writing-mode, and mixed Latin/Arabic layout, queried geometry and hit testing, built a Blitz Paint/AnyRender scene, and rendered without a window.
 
 The selected adapter was `NVIDIA GeForce RTX 5070`, backend `Vulkan`, device type `DiscreteGpu`, driver `NVIDIA`. Vello GPU rendered a 256 by 256 `Rgba8Unorm` target. Explicit readback returned 262,144 tightly packed RGBA8 bytes and confirmed an interior red pixel. The normal render operation submitted without creating, mapping, or reading a staging buffer.
 
@@ -59,5 +59,3 @@ $env:RUSTDOCFLAGS = '-D warnings'
 cargo doc --locked --no-deps --all-features
 Remove-Item Env:RUSTDOCFLAGS
 ```
-
-The Windows filesystem used for validation does not support hard links in Cargo's incremental cache. Cargo reports that it copies those cache files instead; this is an environment warning from Cargo, not a Rust or Clippy diagnostic.

@@ -73,6 +73,7 @@ impl ResourceStore {
                 reason: "the URI is already registered".to_owned(),
             });
         }
+        let uri = source.uri.clone();
 
         let mut reusable = None;
         for (index, slot) in state.slots.iter().enumerate() {
@@ -85,22 +86,22 @@ impl ResourceStore {
         let (slot_index, generation) = if let Some(index) = reusable {
             let slot = &mut state.slots[index];
             slot.generation += 1;
-            slot.value = Some(source.clone());
+            slot.value = Some(source);
             (index, slot.generation)
         } else {
             let index = state.slots.len();
             state.slots.push(ResourceSlot {
                 generation: 1,
-                value: Some(source.clone()),
+                value: Some(source),
             });
             (index, 1)
         };
 
         let slot = u32::try_from(slot_index).map_err(|_| CoreError::ResourceLimit {
-            resource: source.uri.clone(),
+            resource: uri.clone(),
             limit: "Lavret resource handle capacity".to_owned(),
         })?;
-        state.by_uri.insert(source.uri, slot);
+        state.by_uri.insert(uri, slot);
         Ok(ResourceHandle::new(owner, slot, generation))
     }
 
@@ -131,7 +132,8 @@ impl ResourceStore {
         let old_uri = current.uri.clone();
         let old_kind = current.kind;
         let new_kind = source.kind;
-        if old_uri != source.uri && state.by_uri.contains_key(&source.uri) {
+        let new_uri = source.uri.clone();
+        if old_uri != new_uri && state.by_uri.contains_key(&new_uri) {
             return Err(CoreError::InvalidArgument {
                 name: "resource uri",
                 reason: "the URI is already registered".to_owned(),
@@ -143,9 +145,9 @@ impl ResourceStore {
             .slots
             .get_mut(slot_index)
             .ok_or(CoreError::Handle(HandleError::Invalid))?;
-        slot.value = Some(source.clone());
-        state.by_uri.insert(source.uri.clone(), handle.slot);
-        Ok((old_uri, source.uri, old_kind, new_kind))
+        slot.value = Some(source);
+        state.by_uri.insert(new_uri.clone(), handle.slot);
+        Ok((old_uri, new_uri, old_kind, new_kind))
     }
 
     pub(crate) fn remove(
@@ -206,11 +208,11 @@ impl NetProvider for MemoryNetProvider {
                 .slots
                 .get(*slot as usize)
                 .and_then(|entry| entry.value.as_ref())
-                .map(|source| source.bytes.clone())
+                .map(|source| Bytes::copy_from_slice(&source.bytes))
         });
         if let Some(bytes) = bytes {
             drop(state);
-            handler.bytes(uri.clone(), Bytes::copy_from_slice(&bytes));
+            handler.bytes(uri.clone(), bytes);
         } else {
             if !state.missing_uris.contains(&uri) {
                 state.missing_uris.push(uri.clone());

@@ -276,6 +276,13 @@ impl RendererState {
         .map_err(|_| readback_size_error(width, height))?;
 
         let gpu = self.gpu()?;
+        let max_buffer_size = gpu.device_handle.device.limits().max_buffer_size;
+        if buffer_size > max_buffer_size {
+            return Err(CoreError::ResourceLimit {
+                resource: format!("RGBA8 readback {width}x{height}"),
+                limit: format!("GPU max_buffer_size={max_buffer_size}"),
+            });
+        }
         let buffer = gpu.device_handle.device.create_buffer(&BufferDescriptor {
             label: Some("Lavret RGBA8 readback"),
             size: buffer_size,

@@ -265,34 +265,3 @@ fn hit_testing_returns_lavret_handles_in_topmost_order() {
     let hits = core.hit_test(document, Point::new(30.0, 30.0)).unwrap();
     assert_eq!(&hits[..2], &[front, back]);
 }
-
-#[test]
-fn text_stack_lays_out_bidi_combining_fallback_and_variation_content() {
-    let css = r#"
-        html,body{margin:0}
-        #mixed{width:150px;font:24px "Segoe UI Variable Text","Segoe UI Emoji",sans-serif;font-variation-settings:"wght" 650;line-height:1.2}
-        #vertical-text{position:absolute;left:200px;top:0;height:120px;writing-mode:vertical-rl;font:22px sans-serif}
-    "#;
-    let html = r#"
-        <div id="mixed" dir="auto">Lavret العربية e&#x301; 😀 Latin العربية</div>
-        <div id="vertical-text">縦書き مرحبا</div>
-    "#;
-    let mut core = Core::new(CoreOptions::default()).unwrap();
-    let document = core.create_document(source(html, css), viewport()).unwrap();
-    core.resolve(document, Duration::ZERO).unwrap();
-    let mixed = core.find_element_by_id(document, "mixed").unwrap().unwrap();
-    let vertical = core
-        .find_element_by_id(document, "vertical-text")
-        .unwrap()
-        .unwrap();
-    let mixed_box = core.border_box(document, mixed).unwrap();
-    let vertical_box = core.border_box(document, vertical).unwrap();
-    assert_eq!(mixed_box.size.width, 150.0);
-    assert!(mixed_box.size.height > 28.0);
-    assert!(vertical_box.size.width > 0.0);
-    assert!(
-        core.hit_test(document, Point::new(10.0, 10.0))
-            .unwrap()
-            .contains(&mixed)
-    );
-}

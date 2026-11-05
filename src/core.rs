@@ -8,8 +8,8 @@ use blitz_dom::{EventDriver, LocalName, NodeId};
 use blitz_html::HtmlDocument;
 
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticSeverity};
-use crate::interaction::{self, Dispatch, SemanticCapture, SemanticEvent};
-use crate::rendering::RendererState;
+use crate::input::{self, Dispatch, SemanticCapture, SemanticEvent};
+use crate::renderer::RendererState;
 use crate::resources::ResourceStore;
 use crate::upstream;
 use crate::{
@@ -561,7 +561,10 @@ impl Core {
     ) -> Result<ResourceHandle, CoreError> {
         self.check_thread()?;
         let source = validate_resource_source(source)?;
-        self.resources.insert(self.owner, source)
+        let uri = source.uri.clone();
+        let handle = self.resources.insert(self.owner, source)?;
+        self.invalidate_resource(&uri);
+        Ok(handle)
     }
 
     pub fn dispatch_input(
@@ -578,7 +581,7 @@ impl Core {
                 return Err(CoreError::UnresolvedDocument);
             }
             let scroll = state.document.viewport_scroll();
-            match interaction::translate(event, Point::new(scroll.x, scroll.y))? {
+            match input::translate(event, Point::new(scroll.x, scroll.y))? {
                 Dispatch::Upstream(event) => {
                     let capture = SemanticCapture::new(&mut translated_events);
                     EventDriver::new(&mut state.document, capture).handle_ui_event(event);

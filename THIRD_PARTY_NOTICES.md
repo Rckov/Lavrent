@@ -20,4 +20,4 @@ ICU4X code and compiled Unicode data are distributed under Unicode-3.0. Its copy
 
 `tests/fixtures/DejaVuSans.woff2` is retained only as a font-loading integration fixture. It comes from the pinned Blitz source tree and remains under the DejaVu Fonts license derived from the Bitstream Vera font license; the fixture is not part of the Lavret library artifact.
 
-The complete resolved package inventory, source revisions, and checksums are authoritative in `Cargo.lock`. Distribution packaging must include the corresponding upstream license texts and copyright notices. This inventory is technical information, not legal advice.
+`Cargo.lock` records the resolved package inventory, source revisions, and checksums. Distribution packages must include the corresponding upstream license texts and copyright notices.
