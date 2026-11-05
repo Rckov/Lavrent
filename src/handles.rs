@@ -64,3 +64,13 @@ impl ResourceHandle {
         }
     }
 }
+
+impl RenderTargetHandle {
+    pub(crate) const fn new(owner: usize, slot: u32, generation: u32) -> Self {
+        Self {
+            owner,
+            slot,
+            generation,
+        }
+    }
+}

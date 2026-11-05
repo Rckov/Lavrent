@@ -10,6 +10,7 @@ mod geometry;
 mod handles;
 mod input;
 mod interaction;
+mod rendering;
 mod resources;
 mod upstream;
 
@@ -23,4 +24,5 @@ pub use input::{
     InputEvent, Key, KeyLocation, Modifiers, NamedKey, PhysicalKey, PointerButton, PointerButtons,
     PointerId, PointerKind, UiEvent, UiEventData, UiEventKind,
 };
+pub use rendering::{RenderResult, Rgba8Readback};
 pub use resources::{ResourceKind, ResourceSource};
