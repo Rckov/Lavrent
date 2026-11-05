@@ -1417,6 +1417,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "lavret-native"
+version = "0.1.0"
+dependencies = [
+ "lavret-core",
+]
+
+[[package]]
 name = "lexical"
 version = "7.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
