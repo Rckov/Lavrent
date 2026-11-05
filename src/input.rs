@@ -85,6 +85,7 @@ pub enum InputEvent {
     PointerMove {
         id: PointerId,
         kind: PointerKind,
+        is_primary: bool,
         position: Point,
         buttons: PointerButtons,
         modifiers: Modifiers,
@@ -92,6 +93,7 @@ pub enum InputEvent {
     PointerDown {
         id: PointerId,
         kind: PointerKind,
+        is_primary: bool,
         position: Point,
         button: PointerButton,
         buttons: PointerButtons,
@@ -100,6 +102,7 @@ pub enum InputEvent {
     PointerUp {
         id: PointerId,
         kind: PointerKind,
+        is_primary: bool,
         position: Point,
         button: PointerButton,
         buttons: PointerButtons,
@@ -107,9 +110,19 @@ pub enum InputEvent {
     },
     PointerCancel {
         id: PointerId,
+        kind: PointerKind,
+        is_primary: bool,
+        position: Point,
+        buttons: PointerButtons,
+        modifiers: Modifiers,
     },
     PointerLeave {
         id: PointerId,
+        kind: PointerKind,
+        is_primary: bool,
+        position: Point,
+        buttons: PointerButtons,
+        modifiers: Modifiers,
     },
     Wheel {
         position: Point,

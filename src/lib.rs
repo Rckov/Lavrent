@@ -9,6 +9,7 @@ mod error;
 mod geometry;
 mod handles;
 mod input;
+mod interaction;
 mod resources;
 mod upstream;
 
