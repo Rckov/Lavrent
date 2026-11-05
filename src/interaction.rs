@@ -194,7 +194,7 @@ pub(crate) fn translate(event: InputEvent, scroll: Point) -> Result<Dispatch, Co
             }
             Ok(Dispatch::Upstream(BlitzUiEvent::Wheel(BlitzWheelEvent {
                 delta: BlitzWheelDelta::Pixels(delta_x, delta_y),
-                coords: pointer_coords(position, scroll),
+                coords: pointer_coords(position, scroll)?,
                 buttons: MouseEventButtons::None,
                 mods: modifiers_to_blitz(modifiers),
                 element: BlitzPoint::default(),
@@ -213,7 +213,7 @@ pub(crate) fn translate(event: InputEvent, scroll: Point) -> Result<Dispatch, Co
             modifiers,
             repeat,
             KeyState::Pressed,
-        )))),
+        )?))),
         InputEvent::KeyUp {
             key,
             physical_key,
@@ -226,7 +226,7 @@ pub(crate) fn translate(event: InputEvent, scroll: Point) -> Result<Dispatch, Co
             modifiers,
             false,
             KeyState::Released,
-        )))),
+        )?))),
         InputEvent::TextInput { text } | InputEvent::ImeCommit { text } => Ok(Dispatch::Upstream(
             BlitzUiEvent::Ime(BlitzImeEvent::Commit(text)),
         )),
@@ -271,7 +271,7 @@ fn pointer_event(
             PointerKind::Pen => BlitzPointerId::Pen,
         },
         is_primary: identity.is_primary,
-        coords: pointer_coords(position, scroll),
+        coords: pointer_coords(position, scroll)?,
         button: button_to_blitz(button),
         buttons: buttons_to_blitz(buttons),
         mods: modifiers_to_blitz(modifiers),
@@ -281,15 +281,28 @@ fn pointer_event(
     })
 }
 
-fn pointer_coords(position: Point, scroll: Point) -> PointerCoords {
-    PointerCoords {
+fn pointer_coords(position: Point, scroll: Point) -> Result<PointerCoords, CoreError> {
+    let client_x = position.x - scroll.x;
+    let client_y = position.y - scroll.y;
+    if !client_x.is_finite()
+        || !client_y.is_finite()
+        || client_x.abs() > f64::from(f32::MAX)
+        || client_y.abs() > f64::from(f32::MAX)
+    {
+        return Err(CoreError::InvalidArgument {
+            name: "input position",
+            reason: "viewport-relative coordinates are not representable by the document engine"
+                .to_owned(),
+        });
+    }
+    Ok(PointerCoords {
         page_x: position.x as f32,
         page_y: position.y as f32,
-        screen_x: (position.x - scroll.x) as f32,
-        screen_y: (position.y - scroll.y) as f32,
-        client_x: (position.x - scroll.x) as f32,
-        client_y: (position.y - scroll.y) as f32,
-    }
+        screen_x: client_x as f32,
+        screen_y: client_y as f32,
+        client_x: client_x as f32,
+        client_y: client_y as f32,
+    })
 }
 
 fn button_to_blitz(button: PointerButton) -> MouseEventButton {
@@ -346,11 +359,16 @@ fn key_event(
     modifiers: Modifiers,
     repeat: bool,
     state: KeyState,
-) -> BlitzKeyEvent {
-    BlitzKeyEvent {
+) -> Result<BlitzKeyEvent, CoreError> {
+    Ok(BlitzKeyEvent {
         key: key_to_blitz(key),
         code: match physical_key {
-            PhysicalKey::Code(code) => Code::from_str(&code).unwrap_or(Code::Unidentified),
+            PhysicalKey::Code(code) => {
+                Code::from_str(&code).map_err(|_| CoreError::InvalidArgument {
+                    name: "physical key",
+                    reason: format!("unknown keyboard code {code}"),
+                })?
+            }
             PhysicalKey::Unidentified => Code::Unidentified,
         },
         modifiers: modifiers_to_blitz(modifiers),
@@ -364,7 +382,7 @@ fn key_event(
         is_composing: false,
         state,
         text: None,
-    }
+    })
 }
 
 fn key_to_blitz(key: Key) -> BlitzKey {
@@ -397,12 +415,17 @@ fn key_to_blitz(key: Key) -> BlitzKey {
 }
 
 fn validate_point(point: Point) -> Result<(), CoreError> {
-    if point.x.is_finite() && point.y.is_finite() {
+    if point.x.is_finite()
+        && point.y.is_finite()
+        && point.x.abs() <= f64::from(f32::MAX)
+        && point.y.abs() <= f64::from(f32::MAX)
+    {
         Ok(())
     } else {
         Err(CoreError::InvalidArgument {
             name: "input position",
-            reason: "coordinates must be finite".to_owned(),
+            reason: "coordinates must be finite and representable by the document engine"
+                .to_owned(),
         })
     }
 }

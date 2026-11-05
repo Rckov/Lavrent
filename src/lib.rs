@@ -16,7 +16,7 @@ mod upstream;
 
 pub use core::Core;
 pub use diagnostics::{Diagnostic, DiagnosticCode, DiagnosticContext, DiagnosticSeverity};
-pub use document::{CoreOptions, DocumentSource, PowerPreference, Viewport};
+pub use document::{ColorScheme, CoreOptions, DocumentSource, PowerPreference, Viewport};
 pub use error::{CoreError, HandleError};
 pub use geometry::{Point, Rect, Size};
 pub use handles::{DocumentHandle, NodeHandle, RenderTargetHandle, ResourceHandle};

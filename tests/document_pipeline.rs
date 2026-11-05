@@ -1,6 +1,8 @@
 use std::time::Duration;
 
-use lavret_core::{Core, CoreError, CoreOptions, DocumentSource, HandleError, Point, Viewport};
+use lavret_core::{
+    ColorScheme, Core, CoreError, CoreOptions, DocumentSource, HandleError, Point, Viewport,
+};
 
 fn viewport() -> Viewport {
     Viewport::new(400.0, 300.0, 1.0)
@@ -110,6 +112,27 @@ fn mutations_are_batched_until_explicit_resolve() {
     );
     core.resolve(document, Duration::ZERO).unwrap();
     assert_eq!(core.border_box(document, host).unwrap().size.width, 120.0);
+    core.remove_attribute(document, host, "class").unwrap();
+    core.resolve(document, Duration::ZERO).unwrap();
+    assert_eq!(core.border_box(document, host).unwrap().size.width, 400.0);
+
+    let inserted = core.create_element(document, "div").unwrap();
+    core.set_attribute(document, inserted, "class", "wide")
+        .unwrap();
+    let inserted_text = core.create_text(document, "inserted").unwrap();
+    core.append_node(document, inserted, inserted_text).unwrap();
+    core.append_node(document, host, inserted).unwrap();
+    let leading = core.create_element(document, "span").unwrap();
+    let leading_text = core.create_text(document, "leading").unwrap();
+    core.append_node(document, leading, leading_text).unwrap();
+    core.insert_node_before(document, inserted, leading)
+        .unwrap();
+    core.resolve(document, Duration::ZERO).unwrap();
+    assert_eq!(
+        core.border_box(document, inserted).unwrap().size.width,
+        120.0
+    );
+    assert!(core.border_box(document, leading).is_ok());
 
     core.move_node(document, child, other, None).unwrap();
     core.replace_text_content(document, child, "updated")
@@ -121,6 +144,45 @@ fn mutations_are_batched_until_explicit_resolve() {
     assert_eq!(
         core.set_attribute(document, child, "class", "gone"),
         Err(CoreError::Handle(HandleError::Destroyed))
+    );
+}
+
+#[test]
+fn viewport_values_must_fit_the_document_engine() {
+    let mut core = Core::new(CoreOptions::default()).unwrap();
+    for viewport in [
+        Viewport::new(0.0, 100.0, 1.0),
+        Viewport::new(f64::NAN, 100.0, 1.0),
+        Viewport::new(100.0, f64::INFINITY, 1.0),
+        Viewport::new(100.0, 100.0, f64::MIN_POSITIVE),
+    ] {
+        assert!(matches!(
+            core.create_document(DocumentSource::new("<div></div>"), viewport),
+            Err(CoreError::InvalidArgument { .. })
+        ));
+    }
+}
+
+#[test]
+fn viewport_color_scheme_updates_media_queries() {
+    let css = "#box{width:40px;height:10px}@media(prefers-color-scheme:dark){#box{width:80px}}";
+    let mut core = Core::new(CoreOptions::default()).unwrap();
+    let document = core
+        .create_document(source("<div id='box'></div>", css), viewport())
+        .unwrap();
+    core.resolve(document, Duration::ZERO).unwrap();
+    let box_node = core.find_element_by_id(document, "box").unwrap().unwrap();
+    assert_eq!(
+        core.border_box(document, box_node).unwrap().size.width,
+        40.0
+    );
+
+    core.set_viewport(document, viewport().with_color_scheme(ColorScheme::Dark))
+        .unwrap();
+    core.resolve(document, Duration::ZERO).unwrap();
+    assert_eq!(
+        core.border_box(document, box_node).unwrap().size.width,
+        80.0
     );
 }
 
@@ -175,6 +237,23 @@ fn handles_enforce_owner_document_and_generation() {
 }
 
 #[test]
+fn handles_from_a_dropped_core_remain_foreign_to_later_cores() {
+    let old_document = {
+        let mut core = Core::new(CoreOptions::default()).unwrap();
+        core.create_document(DocumentSource::new("<div></div>"), viewport())
+            .unwrap()
+    };
+    let mut later = Core::new(CoreOptions::default()).unwrap();
+    let _ = later
+        .create_document(DocumentSource::new("<div></div>"), viewport())
+        .unwrap();
+    assert_eq!(
+        later.resolve(old_document, Duration::ZERO),
+        Err(CoreError::Handle(HandleError::Foreign))
+    );
+}
+
+#[test]
 fn hit_testing_returns_lavret_handles_in_topmost_order() {
     let css = "html,body{margin:0}#back,#front{position:absolute;left:10px;top:10px;width:100px;height:100px}#front{left:20px;top:20px;width:40px;height:40px}";
     let html = "<div id='back'><div id='front'></div></div>";
@@ -185,4 +264,35 @@ fn hit_testing_returns_lavret_handles_in_topmost_order() {
     let back = core.find_element_by_id(document, "back").unwrap().unwrap();
     let hits = core.hit_test(document, Point::new(30.0, 30.0)).unwrap();
     assert_eq!(&hits[..2], &[front, back]);
+}
+
+#[test]
+fn text_stack_lays_out_bidi_combining_fallback_and_variation_content() {
+    let css = r#"
+        html,body{margin:0}
+        #mixed{width:150px;font:24px "Segoe UI Variable Text","Segoe UI Emoji",sans-serif;font-variation-settings:"wght" 650;line-height:1.2}
+        #vertical-text{position:absolute;left:200px;top:0;height:120px;writing-mode:vertical-rl;font:22px sans-serif}
+    "#;
+    let html = r#"
+        <div id="mixed" dir="auto">Lavret العربية e&#x301; 😀 Latin العربية</div>
+        <div id="vertical-text">縦書き مرحبا</div>
+    "#;
+    let mut core = Core::new(CoreOptions::default()).unwrap();
+    let document = core.create_document(source(html, css), viewport()).unwrap();
+    core.resolve(document, Duration::ZERO).unwrap();
+    let mixed = core.find_element_by_id(document, "mixed").unwrap().unwrap();
+    let vertical = core
+        .find_element_by_id(document, "vertical-text")
+        .unwrap()
+        .unwrap();
+    let mixed_box = core.border_box(document, mixed).unwrap();
+    let vertical_box = core.border_box(document, vertical).unwrap();
+    assert_eq!(mixed_box.size.width, 150.0);
+    assert!(mixed_box.size.height > 28.0);
+    assert!(vertical_box.size.width > 0.0);
+    assert!(
+        core.hit_test(document, Point::new(10.0, 10.0))
+            .unwrap()
+            .contains(&mixed)
+    );
 }

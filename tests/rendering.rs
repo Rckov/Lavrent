@@ -1,8 +1,8 @@
 use std::time::Duration;
 
 use lavret_core::{
-    Core, CoreError, CoreOptions, DocumentSource, HandleError, ResourceKind, ResourceSource,
-    Rgba8Readback, Viewport,
+    Core, CoreError, CoreOptions, DiagnosticCode, DocumentSource, HandleError, ResourceKind,
+    ResourceSource, Rgba8Readback, Viewport,
 };
 
 const WIDTH: u32 = 256;
@@ -38,7 +38,7 @@ fn offscreen_render_and_explicit_readback_cover_paint_features() {
         <div id="solid"></div><div id="border"></div>
         <img id="raster" src="lavret:/pixel.png"><img id="svg" src="lavret:/shape.svg">
         <div id="gradient"></div><div id="opacity"></div><div id="transform"></div>
-        <div id="clip"><div></div></div><div id="shadow"></div><div id="text">Lavret</div>
+        <div id="clip"><div></div></div><div id="shadow"></div><div id="text">Lavret 😀 مرحبا e&#x301;</div>
     "#;
     let css = r#"
         html,body{margin:0;width:256px;height:160px;background:rgb(10,20,30)}
@@ -52,7 +52,7 @@ fn offscreen_render_and_explicit_readback_cover_paint_features() {
         #clip{position:absolute;left:60px;top:50px;width:20px;height:20px;overflow:hidden}
         #clip>div{width:40px;height:40px;background:rgb(128,0,128)}
         #shadow{position:absolute;left:100px;top:50px;width:20px;height:20px;background:white;box-shadow:8px 0 0 rgb(255,0,0)}
-        #text{position:absolute;left:8px;top:92px;width:120px;height:40px;color:white;font:32px sans-serif}
+        #text{position:absolute;left:8px;top:92px;width:230px;height:40px;color:white;font:28px "Segoe UI Emoji",sans-serif}
     "#;
     let mut source = DocumentSource::new(html);
     source.author_css.push(css.to_owned());
@@ -64,6 +64,22 @@ fn offscreen_render_and_explicit_readback_cover_paint_features() {
         .unwrap();
     core.resolve(document, Duration::ZERO).unwrap();
     let target = core.create_render_target(WIDTH, HEIGHT).unwrap();
+    let diagnostics = core.drain_diagnostics().unwrap();
+    let renderer = diagnostics
+        .iter()
+        .find(|diagnostic| diagnostic.code == DiagnosticCode::RendererInitialized)
+        .unwrap();
+    for key in [
+        "adapter",
+        "backend",
+        "device_type",
+        "max_texture_dimension_2d",
+        "max_buffer_size",
+        "image_atlas_size",
+        "image_atlas_max_count",
+    ] {
+        assert!(renderer.context.iter().any(|entry| entry.key == key));
+    }
 
     let result = core.render(document, target).unwrap();
     assert_eq!((result.width, result.height), (WIDTH, HEIGHT));
@@ -87,7 +103,7 @@ fn offscreen_render_and_explicit_readback_cover_paint_features() {
     assert_color(pixel(&readback, 124, 58), [255, 0, 0, 255], 1);
 
     let text_pixels = (96..128)
-        .flat_map(|y| (8..128).map(move |x| (x, y)))
+        .flat_map(|y| (8..238).map(move |x| (x, y)))
         .filter(|&(x, y)| pixel(&readback, x, y) != [10, 20, 30, 255])
         .count();
     assert!(text_pixels > 100);

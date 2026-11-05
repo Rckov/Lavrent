@@ -109,7 +109,7 @@ impl ResourceStore {
         owner: usize,
         handle: ResourceHandle,
         source: ResourceSource,
-    ) -> Result<(String, String), CoreError> {
+    ) -> Result<(String, String, ResourceKind, ResourceKind), CoreError> {
         if handle.owner != owner {
             return Err(CoreError::Handle(HandleError::Foreign));
         }
@@ -124,12 +124,13 @@ impl ResourceStore {
         if current.generation != handle.generation {
             return Err(CoreError::Handle(HandleError::Stale));
         }
-        let old_uri = current
+        let current = current
             .value
             .as_ref()
-            .ok_or(CoreError::Handle(HandleError::Destroyed))?
-            .uri
-            .clone();
+            .ok_or(CoreError::Handle(HandleError::Destroyed))?;
+        let old_uri = current.uri.clone();
+        let old_kind = current.kind;
+        let new_kind = source.kind;
         if old_uri != source.uri && state.by_uri.contains_key(&source.uri) {
             return Err(CoreError::InvalidArgument {
                 name: "resource uri",
@@ -144,10 +145,14 @@ impl ResourceStore {
             .ok_or(CoreError::Handle(HandleError::Invalid))?;
         slot.value = Some(source.clone());
         state.by_uri.insert(source.uri.clone(), handle.slot);
-        Ok((old_uri, source.uri))
+        Ok((old_uri, source.uri, old_kind, new_kind))
     }
 
-    pub(crate) fn remove(&self, owner: usize, handle: ResourceHandle) -> Result<String, CoreError> {
+    pub(crate) fn remove(
+        &self,
+        owner: usize,
+        handle: ResourceHandle,
+    ) -> Result<(String, ResourceKind), CoreError> {
         if handle.owner != owner {
             return Err(CoreError::Handle(HandleError::Foreign));
         }
@@ -167,7 +172,7 @@ impl ResourceStore {
             .take()
             .ok_or(CoreError::Handle(HandleError::Destroyed))?;
         state.by_uri.remove(&source.uri);
-        Ok(source.uri)
+        Ok((source.uri, source.kind))
     }
 
     pub(crate) fn take_missing(&self) -> Result<Vec<String>, CoreError> {

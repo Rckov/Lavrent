@@ -17,6 +17,13 @@ pub struct DocumentSource {
     pub base_resource_uri: Option<String>,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ColorScheme {
+    #[default]
+    Light,
+    Dark,
+}
+
 impl DocumentSource {
     #[must_use]
     pub fn new(html: impl Into<String>) -> Self {
@@ -33,6 +40,7 @@ pub struct Viewport {
     pub width: f64,
     pub height: f64,
     pub scale_factor: f64,
+    pub color_scheme: ColorScheme,
 }
 
 impl Viewport {
@@ -42,6 +50,13 @@ impl Viewport {
             width,
             height,
             scale_factor,
+            color_scheme: ColorScheme::Light,
         }
+    }
+
+    #[must_use]
+    pub const fn with_color_scheme(mut self, color_scheme: ColorScheme) -> Self {
+        self.color_scheme = color_scheme;
+        self
     }
 }

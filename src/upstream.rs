@@ -3,9 +3,9 @@ use std::sync::Arc;
 use blitz_dom::{DocumentConfig, LocalName, Namespace, NodeId, QualName};
 use blitz_html::HtmlDocument;
 use blitz_traits::net::NetProvider;
-use blitz_traits::shell::{ColorScheme, Viewport as BlitzViewport};
+use blitz_traits::shell::Viewport as BlitzViewport;
 
-use crate::{CoreError, DocumentSource, Viewport};
+use crate::{ColorScheme, CoreError, DocumentSource, Viewport};
 
 pub(crate) fn create_document(
     source: &DocumentSource,
@@ -80,7 +80,10 @@ fn to_blitz_viewport(viewport: Viewport) -> Result<BlitzViewport, CoreError> {
         width,
         height,
         viewport.scale_factor as f32,
-        ColorScheme::Light,
+        match viewport.color_scheme {
+            ColorScheme::Light => blitz_traits::shell::ColorScheme::Light,
+            ColorScheme::Dark => blitz_traits::shell::ColorScheme::Dark,
+        },
     ))
 }
 

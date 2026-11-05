@@ -16,7 +16,10 @@ use wgpu::{
 };
 use wgpu_context::DeviceHandle;
 
-use crate::{CoreError, HandleError, PowerPreference, RenderTargetHandle};
+use crate::{
+    CoreError, Diagnostic, DiagnosticCode, DiagnosticContext, DiagnosticSeverity, HandleError,
+    PowerPreference, RenderTargetHandle,
+};
 
 const TARGET_FORMAT: TextureFormat = TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
@@ -76,11 +79,13 @@ impl RendererState {
         owner: usize,
         width: u32,
         height: u32,
-    ) -> Result<RenderTargetHandle, CoreError> {
+    ) -> Result<(RenderTargetHandle, Option<Diagnostic>), CoreError> {
         validate_requested_dimensions(width, height)?;
-        self.ensure_gpu(width, height)?;
+        let initialization = self.ensure_gpu(width, height)?;
         self.validate_device_dimensions(width, height)?;
         let texture = create_texture(&self.gpu()?.device_handle.device, width, height);
+        let _ = self.gpu()?.device_handle.device.poll(PollType::Poll);
+        self.check_gpu_state("render target creation")?;
         let target = OffscreenTarget {
             texture,
             width,
@@ -94,7 +99,10 @@ impl RendererState {
                 let generation = slot.generation;
                 slot.value = Some(target);
                 let slot = u32::try_from(index).map_err(|_| target_capacity_error())?;
-                return Ok(RenderTargetHandle::new(owner, slot, generation));
+                return Ok((
+                    RenderTargetHandle::new(owner, slot, generation),
+                    initialization,
+                ));
             }
         }
 
@@ -103,7 +111,7 @@ impl RendererState {
             generation: 1,
             value: Some(target),
         });
-        Ok(RenderTargetHandle::new(owner, slot, 1))
+        Ok((RenderTargetHandle::new(owner, slot, 1), initialization))
     }
 
     pub(crate) fn resize_target(
@@ -342,9 +350,10 @@ impl RendererState {
         })
     }
 
-    fn ensure_gpu(&mut self, width: u32, height: u32) -> Result<(), CoreError> {
+    fn ensure_gpu(&mut self, width: u32, height: u32) -> Result<Option<Diagnostic>, CoreError> {
         if self.gpu.is_some() {
-            return self.check_gpu_state("renderer initialization");
+            self.check_gpu_state("renderer initialization")?;
+            return Ok(None);
         }
 
         let instance = Instance::default();
@@ -358,6 +367,7 @@ impl RendererState {
             ..RequestAdapterOptions::default()
         }))
         .map_err(|_| CoreError::AdapterUnavailable)?;
+        let adapter_info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor {
             label: Some("Lavret device"),
             ..DeviceDescriptor::default()
@@ -366,6 +376,7 @@ impl RendererState {
             reason: error.to_string(),
         })?;
         let dimension_limit = device.limits().max_texture_dimension_2d;
+        let max_buffer_size = device.limits().max_buffer_size;
         if width > dimension_limit || height > dimension_limit {
             return Err(device_dimension_error(width, height, dimension_limit));
         }
@@ -388,12 +399,20 @@ impl RendererState {
             width: dimension_u16(width)?,
             height: dimension_u16(height)?,
         };
-        let (renderer, resources) =
-            Renderer::new_with(&device, &target_config, RenderSettings::default());
+        let render_settings = RenderSettings::default();
+        let atlas_config = render_settings.memory_settings.image_atlas_config;
+        let atlas_dimension_limit = dimension_limit.min(u32::from(u16::MAX)) as u16;
+        let atlas_size = (
+            atlas_config.atlas_size.0.clamp(1, atlas_dimension_limit),
+            atlas_config.atlas_size.1.clamp(1, atlas_dimension_limit),
+        );
+        let (renderer, resources) = Renderer::new_with(&device, &target_config, render_settings);
+        let mut image_cache = ImageCache::default();
+        image_cache.set_max_image_size(atlas_size);
         self.gpu = Some(GpuState {
             renderer,
             resources,
-            image_cache: ImageCache::default(),
+            image_cache,
             device_handle: DeviceHandle {
                 instance,
                 adapter,
@@ -403,7 +422,47 @@ impl RendererState {
             device_lost,
             uncaptured_errors,
         });
-        Ok(())
+        Ok(Some(Diagnostic {
+            code: DiagnosticCode::RendererInitialized,
+            severity: DiagnosticSeverity::Information,
+            document: None,
+            node: None,
+            message: "The offscreen GPU renderer was initialized".to_owned(),
+            context: vec![
+                DiagnosticContext {
+                    key: "adapter".to_owned(),
+                    value: adapter_info.name,
+                },
+                DiagnosticContext {
+                    key: "backend".to_owned(),
+                    value: format!("{:?}", adapter_info.backend),
+                },
+                DiagnosticContext {
+                    key: "device_type".to_owned(),
+                    value: format!("{:?}", adapter_info.device_type),
+                },
+                DiagnosticContext {
+                    key: "driver".to_owned(),
+                    value: adapter_info.driver,
+                },
+                DiagnosticContext {
+                    key: "max_texture_dimension_2d".to_owned(),
+                    value: dimension_limit.to_string(),
+                },
+                DiagnosticContext {
+                    key: "max_buffer_size".to_owned(),
+                    value: max_buffer_size.to_string(),
+                },
+                DiagnosticContext {
+                    key: "image_atlas_size".to_owned(),
+                    value: format!("{}x{}", atlas_size.0, atlas_size.1),
+                },
+                DiagnosticContext {
+                    key: "image_atlas_max_count".to_owned(),
+                    value: atlas_config.max_atlases.to_string(),
+                },
+            ],
+        }))
     }
 
     fn validate_device_dimensions(&self, width: u32, height: u32) -> Result<(), CoreError> {

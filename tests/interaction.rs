@@ -189,3 +189,54 @@ fn wheel_input_scrolls_through_the_upstream_event_driver() {
     );
     core.resolve(document, Duration::ZERO).unwrap();
 }
+
+#[test]
+fn unknown_physical_keys_are_rejected_without_a_fallback() {
+    let (mut core, document) = setup();
+    assert!(matches!(
+        core.dispatch_input(
+            document,
+            InputEvent::KeyDown {
+                key: Key::Unidentified,
+                physical_key: PhysicalKey::Code("NotAKeyboardCode".to_owned()),
+                location: KeyLocation::Standard,
+                modifiers: Modifiers::default(),
+                repeat: false,
+            }
+        ),
+        Err(CoreError::InvalidArgument {
+            name: "physical key",
+            ..
+        })
+    ));
+}
+
+#[test]
+fn pointer_drag_uses_the_upstream_selection_path() {
+    let (mut core, document) = setup();
+    core.dispatch_input(document, mouse_down(Point::new(20.0, 20.0)))
+        .unwrap();
+    core.dispatch_input(
+        document,
+        InputEvent::PointerMove {
+            id: PointerId(1),
+            kind: PointerKind::Mouse,
+            is_primary: true,
+            position: Point::new(100.0, 20.0),
+            buttons: PointerButtons {
+                primary: true,
+                ..PointerButtons::default()
+            },
+            modifiers: Modifiers::default(),
+        },
+    )
+    .unwrap();
+    core.dispatch_input(document, mouse_up(Point::new(100.0, 20.0)))
+        .unwrap();
+    assert!(
+        core.drain_ui_events()
+            .unwrap()
+            .iter()
+            .all(|event| event.kind != UiEventKind::Click)
+    );
+}
