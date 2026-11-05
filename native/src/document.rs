@@ -5,7 +5,7 @@ use lavret_core::{ColorScheme, DocumentSource, Point, Viewport};
 use crate::{
     LAVRET_COLOR_DARK, LAVRET_COLOR_LIGHT, LavretCore, LavretDocumentSource, LavretHandleArray,
     LavretPoint, LavretRect, LavretStringView, LavretViewport, NativeError, core_mut, ffi_status,
-    input_slice, optional_string, owned_handles, string, write_output,
+    input_slice, optional_string, owned_handles, require_output, string, write_output,
 };
 
 fn viewport(viewport: LavretViewport) -> Result<Viewport, NativeError> {
@@ -52,6 +52,7 @@ pub unsafe extern "C" fn lavret_document_create(
     output: *mut u64,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let source = unsafe { document_source(source)? };
         let viewport = viewport(viewport_value)?;
         let core = unsafe { core_mut(core)? };
@@ -103,6 +104,7 @@ pub unsafe extern "C" fn lavret_document_find_element_by_id(
     output: *mut u64,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let id = unsafe { string(id)? };
         let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
@@ -125,6 +127,7 @@ pub unsafe extern "C" fn lavret_node_create_element(
     output: *mut u64,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let name = unsafe { string(name)? };
         let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
@@ -145,6 +148,7 @@ pub unsafe extern "C" fn lavret_node_create_text(
     output: *mut u64,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let text = unsafe { string(text)? };
         let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
@@ -347,6 +351,7 @@ pub unsafe extern "C" fn lavret_node_border_box(
     output: *mut LavretRect,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
         let node = core.nodes.resolve(node, "node")?;
@@ -376,6 +381,7 @@ pub unsafe extern "C" fn lavret_document_hit_test(
     output: *mut LavretHandleArray,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
         let nodes = core

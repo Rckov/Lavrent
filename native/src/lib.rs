@@ -267,12 +267,18 @@ fn owned_handles(handles: Vec<u64>) -> LavretHandleArray {
 }
 
 pub(crate) unsafe fn write_output<T>(output: *mut T, value: T) -> Result<(), NativeError> {
-    if output.is_null() {
-        return Err(NativeError::invalid("output pointer is null"));
-    }
+    require_output(output)?;
     // SAFETY: the caller provides writable, aligned storage for one T.
     unsafe { output.write(value) };
     Ok(())
+}
+
+pub(crate) fn require_output<T>(output: *mut T) -> Result<(), NativeError> {
+    if output.is_null() {
+        Err(NativeError::invalid("output pointer is null"))
+    } else {
+        Ok(())
+    }
 }
 
 pub(crate) unsafe fn core_mut<'core>(
@@ -371,6 +377,7 @@ pub unsafe extern "C" fn lavret_core_new(
     output: *mut *mut LavretCore,
 ) -> u32 {
     ffi_status(|| {
+        require_output(output)?;
         let options = CoreOptions {
             power_preference: power_preference(options.power_preference)?,
         };
