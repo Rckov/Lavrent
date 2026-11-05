@@ -8,18 +8,20 @@ use blitz_html::HtmlDocument;
 
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticSeverity};
 use crate::interaction::{self, Dispatch, SemanticCapture, SemanticEvent};
+use crate::rendering::RendererState;
 use crate::resources::ResourceStore;
 use crate::upstream;
 use crate::{
     CoreError, CoreOptions, DocumentHandle, DocumentSource, HandleError, InputEvent, NodeHandle,
-    Point, Rect, ResourceHandle, ResourceSource, UiEvent, UiEventData, UiEventKind, Viewport,
+    Point, Rect, RenderResult, RenderTargetHandle, ResourceHandle, ResourceSource, Rgba8Readback,
+    UiEvent, UiEventData, UiEventKind, Viewport,
 };
 
 pub struct Core {
     _owner_token: Box<u8>,
     owner: usize,
     thread: ThreadId,
-    _options: CoreOptions,
+    renderer: RendererState,
     documents: Vec<DocumentSlot>,
     resources: Arc<ResourceStore>,
     ui_events: Vec<UiEvent>,
@@ -33,6 +35,7 @@ struct DocumentSlot {
 
 pub(crate) struct DocumentState {
     pub(crate) document: HtmlDocument,
+    viewport: Viewport,
     nodes: NodeStore,
     pub(crate) dirty: bool,
     input_ready: bool,
@@ -73,7 +76,7 @@ impl Core {
             _owner_token: owner_token,
             owner,
             thread: thread::current().id(),
-            _options: options,
+            renderer: RendererState::new(options.power_preference),
             documents: Vec::new(),
             resources: Arc::new(ResourceStore::default()),
             ui_events: Vec::new(),
@@ -92,6 +95,7 @@ impl Core {
         let document = upstream::create_document(&source, viewport, self.resources.provider())?;
         let state = DocumentState {
             document,
+            viewport,
             nodes: NodeStore::default(),
             dirty: true,
             input_ready: false,
@@ -119,15 +123,7 @@ impl Core {
     ) -> Result<(), CoreError> {
         self.check_thread()?;
         validate_document_source(&mut source)?;
-        let viewport = {
-            let state = self.document(handle)?;
-            let viewport = state.document.viewport();
-            Viewport::new(
-                f64::from(viewport.logical_size().0),
-                f64::from(viewport.logical_size().1),
-                f64::from(viewport.hidpi_scale),
-            )
-        };
+        let viewport = self.document(handle)?.viewport;
         let replacement = upstream::create_document(&source, viewport, self.resources.provider())?;
         let state = self.document_mut(handle)?;
         state.document = replacement;
@@ -427,8 +423,61 @@ impl Core {
         validate_viewport(viewport)?;
         let state = self.document_mut(document)?;
         upstream::set_viewport(&mut state.document, viewport)?;
+        state.viewport = viewport;
         state.mark_dirty();
         Ok(())
+    }
+
+    pub fn create_render_target(
+        &mut self,
+        width: u32,
+        height: u32,
+    ) -> Result<RenderTargetHandle, CoreError> {
+        self.check_thread()?;
+        self.renderer.create_target(self.owner, width, height)
+    }
+
+    pub fn resize_render_target(
+        &mut self,
+        target: RenderTargetHandle,
+        width: u32,
+        height: u32,
+    ) -> Result<(), CoreError> {
+        self.check_thread()?;
+        self.renderer
+            .resize_target(self.owner, target, width, height)
+    }
+
+    pub fn destroy_render_target(&mut self, target: RenderTargetHandle) -> Result<(), CoreError> {
+        self.check_thread()?;
+        self.renderer.destroy_target(self.owner, target)
+    }
+
+    pub fn render(
+        &mut self,
+        document: DocumentHandle,
+        target: RenderTargetHandle,
+    ) -> Result<RenderResult, CoreError> {
+        self.check_thread()?;
+        let index = self.document_index(document)?;
+        let state = self
+            .documents
+            .get_mut(index)
+            .and_then(|slot| slot.value.as_mut())
+            .ok_or(CoreError::Handle(HandleError::Destroyed))?;
+        if state.dirty {
+            return Err(CoreError::UnresolvedDocument);
+        }
+        self.renderer
+            .render(self.owner, target, &mut state.document)
+    }
+
+    pub fn readback_rgba8(
+        &mut self,
+        target: RenderTargetHandle,
+    ) -> Result<Rgba8Readback, CoreError> {
+        self.check_thread()?;
+        self.renderer.readback(self.owner, target)
     }
 
     pub fn resolve(
@@ -608,7 +657,9 @@ impl Core {
 
     pub(crate) fn document(&self, handle: DocumentHandle) -> Result<&DocumentState, CoreError> {
         let index = self.document_index(handle)?;
-        self.documents[index]
+        self.documents
+            .get(index)
+            .ok_or(CoreError::Handle(HandleError::Invalid))?
             .value
             .as_ref()
             .ok_or(CoreError::Handle(HandleError::Destroyed))
@@ -619,7 +670,9 @@ impl Core {
         handle: DocumentHandle,
     ) -> Result<&mut DocumentState, CoreError> {
         let index = self.document_index(handle)?;
-        self.documents[index]
+        self.documents
+            .get_mut(index)
+            .ok_or(CoreError::Handle(HandleError::Invalid))?
             .value
             .as_mut()
             .ok_or(CoreError::Handle(HandleError::Destroyed))
