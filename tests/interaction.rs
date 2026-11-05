@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use lavret_core::{
+use engine_core::{
     Core, CoreError, CoreOptions, DocumentSource, InputEvent, Key, KeyLocation, Modifiers,
     NamedKey, PhysicalKey, Point, PointerButton, PointerButtons, PointerId, PointerKind,
     UiEventData, UiEventKind, Viewport,
@@ -33,7 +33,7 @@ fn mouse_up(position: Point) -> InputEvent {
     }
 }
 
-fn setup() -> (Core, lavret_core::DocumentHandle) {
+fn setup() -> (Core, engine_core::DocumentHandle) {
     let mut source = DocumentSource::new(
         "<input id='editor'><button id='button'>Go</button><div id='overflow'><div></div></div>",
     );

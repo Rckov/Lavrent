@@ -78,7 +78,7 @@ impl Core {
             })
             .map_err(|_| CoreError::ResourceLimit {
                 resource: "core owner identity".to_owned(),
-                limit: "Lavret owner-identity space".to_owned(),
+                limit: "core owner-identity space".to_owned(),
             })?;
         Ok(Self {
             owner,
@@ -732,14 +732,14 @@ impl Core {
                 slot.value = Some(state);
                 let index = u32::try_from(index).map_err(|_| CoreError::ResourceLimit {
                     resource: "document".to_owned(),
-                    limit: "Lavret document handle capacity".to_owned(),
+                    limit: "document handle capacity".to_owned(),
                 })?;
                 return Ok(DocumentHandle::new(self.owner, index, slot.generation));
             }
         }
         let index = u32::try_from(self.documents.len()).map_err(|_| CoreError::ResourceLimit {
             resource: "document".to_owned(),
-            limit: "Lavret document handle capacity".to_owned(),
+            limit: "document handle capacity".to_owned(),
         })?;
         self.documents.push(DocumentSlot {
             generation: 1,
@@ -839,7 +839,7 @@ impl NodeStore {
                 slot.value = Some(node_id);
                 let index = u32::try_from(index).map_err(|_| CoreError::ResourceLimit {
                     resource: "document nodes".to_owned(),
-                    limit: "Lavret node handle capacity".to_owned(),
+                    limit: "node handle capacity".to_owned(),
                 })?;
                 self.by_id.insert(node_id, index);
                 return Ok(NodeHandle::new(owner, document, index, slot.generation));
@@ -848,7 +848,7 @@ impl NodeStore {
 
         let index = u32::try_from(self.slots.len()).map_err(|_| CoreError::ResourceLimit {
             resource: "document nodes".to_owned(),
-            limit: "Lavret node handle capacity".to_owned(),
+            limit: "node handle capacity".to_owned(),
         })?;
         self.slots.push(NodeSlot {
             generation: 1,
@@ -908,7 +908,7 @@ fn validate_document_source(source: &mut DocumentSource) -> Result<(), CoreError
             name: "base resource URI",
             reason: error.to_string(),
         })?;
-        if parsed.scheme() != "lavret" {
+        if parsed.scheme() != "memory" {
             return Err(CoreError::UnsupportedResourceScheme {
                 scheme: parsed.scheme().to_owned(),
             });
@@ -929,7 +929,7 @@ fn validate_resource_source(mut source: ResourceSource) -> Result<ResourceSource
         name: "resource URI",
         reason: error.to_string(),
     })?;
-    if parsed.scheme() != "lavret" {
+    if parsed.scheme() != "memory" {
         return Err(CoreError::UnsupportedResourceScheme {
             scheme: parsed.scheme().to_owned(),
         });

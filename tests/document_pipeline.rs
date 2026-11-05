@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use lavret_core::{
+use engine_core::{
     ColorScheme, Core, CoreError, CoreOptions, DocumentSource, HandleError, Point, Viewport,
 };
 
@@ -68,7 +68,7 @@ fn layout_pipeline_exposes_hand_derived_geometry() {
 
     assert_eq!(
         core.border_box(document, block).unwrap(),
-        lavret_core::Rect::new(10.0, 10.0, 100.0, 20.0)
+        engine_core::Rect::new(10.0, 10.0, 100.0, 20.0)
     );
     assert_eq!(
         core.border_box(document, flex_fixed).unwrap().size.width,
@@ -85,11 +85,11 @@ fn layout_pipeline_exposes_hand_derived_geometry() {
     assert_eq!(core.border_box(document, cell).unwrap().size.width, 50.0);
     assert_eq!(
         core.border_box(document, float).unwrap(),
-        lavret_core::Rect::new(10.0, 130.0, 40.0, 20.0)
+        engine_core::Rect::new(10.0, 130.0, 40.0, 20.0)
     );
     assert_eq!(
         core.border_box(document, vertical).unwrap().size,
-        lavret_core::Size::new(40.0, 80.0)
+        engine_core::Size::new(40.0, 80.0)
     );
 }
 
@@ -148,7 +148,7 @@ fn mutations_are_batched_until_explicit_resolve() {
 }
 
 #[test]
-fn viewport_values_must_fit_the_document_engine() {
+fn viewport_values_must_fit_the_engine() {
     let mut core = Core::new(CoreOptions::default()).unwrap();
     for viewport in [
         Viewport::new(0.0, 100.0, 1.0),
@@ -254,7 +254,7 @@ fn handles_from_a_dropped_core_remain_foreign_to_later_cores() {
 }
 
 #[test]
-fn hit_testing_returns_lavret_handles_in_topmost_order() {
+fn hit_testing_returns_node_handles_in_topmost_order() {
     let css = "html,body{margin:0}#back,#front{position:absolute;left:10px;top:10px;width:100px;height:100px}#front{left:20px;top:20px;width:40px;height:40px}";
     let html = "<div id='back'><div id='front'></div></div>";
     let mut core = Core::new(CoreOptions::default()).unwrap();

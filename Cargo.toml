@@ -1,9 +1,13 @@
 [package]
-name = "lavret-core"
+name = "engine-core"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
 publish = false
+
+[workspace]
+members = ["native"]
+resolver = "3"
 
 [lib]
 crate-type = ["rlib"]

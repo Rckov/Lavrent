@@ -18,7 +18,7 @@ pub(crate) fn create_document(
             source
                 .base_resource_uri
                 .clone()
-                .unwrap_or_else(|| "lavret:/".to_owned()),
+                .unwrap_or_else(|| "memory:/".to_owned()),
         ),
         net_provider: Some(provider),
         ..DocumentConfig::default()

@@ -99,7 +99,7 @@ impl ResourceStore {
 
         let slot = u32::try_from(slot_index).map_err(|_| CoreError::ResourceLimit {
             resource: uri.clone(),
-            limit: "Lavret resource handle capacity".to_owned(),
+            limit: "resource handle capacity".to_owned(),
         })?;
         state.by_uri.insert(uri, slot);
         Ok(ResourceHandle::new(owner, slot, generation))
