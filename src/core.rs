@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::{self, ThreadId};
 use std::time::Duration;
 
@@ -17,8 +18,9 @@ use crate::{
     UiEvent, UiEventData, UiEventKind, Viewport,
 };
 
+static NEXT_CORE_OWNER: AtomicUsize = AtomicUsize::new(1);
+
 pub struct Core {
-    _owner_token: Box<u8>,
     owner: usize,
     thread: ThreadId,
     renderer: RendererState,
@@ -70,10 +72,15 @@ struct NodeStore {
 
 impl Core {
     pub fn new(options: CoreOptions) -> Result<Self, CoreError> {
-        let owner_token = Box::new(0);
-        let owner = (&raw const *owner_token).addr();
+        let owner = NEXT_CORE_OWNER
+            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                current.checked_add(1)
+            })
+            .map_err(|_| CoreError::ResourceLimit {
+                resource: "core owner identity".to_owned(),
+                limit: "Lavret owner-identity space".to_owned(),
+            })?;
         Ok(Self {
-            _owner_token: owner_token,
             owner,
             thread: thread::current().id(),
             renderer: RendererState::new(options.power_preference),
@@ -434,7 +441,11 @@ impl Core {
         height: u32,
     ) -> Result<RenderTargetHandle, CoreError> {
         self.check_thread()?;
-        self.renderer.create_target(self.owner, width, height)
+        let (target, diagnostic) = self.renderer.create_target(self.owner, width, height)?;
+        if let Some(diagnostic) = diagnostic {
+            self.diagnostics.push(diagnostic);
+        }
+        Ok(target)
     }
 
     pub fn resize_render_target(
@@ -532,9 +543,11 @@ impl Core {
             return Err(CoreError::UnresolvedDocument);
         }
         let scroll = state.document.viewport_scroll();
+        let viewport_point = Point::new(point.x - scroll.x, point.y - scroll.y);
+        validate_point(viewport_point)?;
         let ids = state
             .document
-            .elements_from_point((point.x - scroll.x) as f32, (point.y - scroll.y) as f32);
+            .elements_from_point(viewport_point.x as f32, viewport_point.y as f32);
         let mut handles = Vec::with_capacity(ids.len());
         for id in ids {
             handles.push(state.nodes.handle_for(owner, document, id)?);
@@ -616,17 +629,34 @@ impl Core {
     ) -> Result<(), CoreError> {
         self.check_thread()?;
         let source = validate_resource_source(source)?;
-        let (old_uri, new_uri) = self.resources.replace(self.owner, handle, source)?;
+        let (old_uri, new_uri, old_kind, new_kind) =
+            self.resources.replace(self.owner, handle, source)?;
         self.invalidate_resource(&old_uri);
         if old_uri != new_uri {
             self.invalidate_resource(&new_uri);
+        }
+        if old_kind != crate::ResourceKind::AuthorStylesheet
+            || new_kind != crate::ResourceKind::AuthorStylesheet
+        {
+            self.diagnostics.push(Diagnostic {
+                code: DiagnosticCode::CapabilityUnavailable,
+                severity: DiagnosticSeverity::Warning,
+                document: None,
+                node: None,
+                message: "The pinned document engine cannot evict decoded resource caches"
+                    .to_owned(),
+                context: vec![crate::DiagnosticContext {
+                    key: "uri".to_owned(),
+                    value: old_uri,
+                }],
+            });
         }
         Ok(())
     }
 
     pub fn remove_resource(&mut self, handle: ResourceHandle) -> Result<(), CoreError> {
         self.check_thread()?;
-        let uri = self.resources.remove(self.owner, handle)?;
+        let (uri, kind) = self.resources.remove(self.owner, handle)?;
         self.invalidate_resource(&uri);
         self.diagnostics.push(Diagnostic {
             code: DiagnosticCode::MissingResource,
@@ -636,9 +666,23 @@ impl Core {
             message: "A registered resource was removed".to_owned(),
             context: vec![crate::DiagnosticContext {
                 key: "uri".to_owned(),
-                value: uri,
+                value: uri.clone(),
             }],
         });
+        if kind != crate::ResourceKind::AuthorStylesheet {
+            self.diagnostics.push(Diagnostic {
+                code: DiagnosticCode::CapabilityUnavailable,
+                severity: DiagnosticSeverity::Warning,
+                document: None,
+                node: None,
+                message: "The pinned document engine cannot evict decoded resource caches"
+                    .to_owned(),
+                context: vec![crate::DiagnosticContext {
+                    key: "uri".to_owned(),
+                    value: uri,
+                }],
+            });
+        }
         Ok(())
     }
 
@@ -903,17 +947,29 @@ fn validate_viewport(viewport: Viewport) -> Result<(), CoreError> {
                 reason: "value must be finite and positive".to_owned(),
             });
         }
+        let upstream_value = value as f32;
+        if !upstream_value.is_finite() || upstream_value <= 0.0 {
+            return Err(CoreError::InvalidArgument {
+                name,
+                reason: "value is not representable by the document engine".to_owned(),
+            });
+        }
     }
     Ok(())
 }
 
 fn validate_point(point: Point) -> Result<(), CoreError> {
-    if point.x.is_finite() && point.y.is_finite() {
+    if point.x.is_finite()
+        && point.y.is_finite()
+        && point.x.abs() <= f64::from(f32::MAX)
+        && point.y.abs() <= f64::from(f32::MAX)
+    {
         Ok(())
     } else {
         Err(CoreError::InvalidArgument {
             name: "point",
-            reason: "coordinates must be finite".to_owned(),
+            reason: "coordinates must be finite and representable by the document engine"
+                .to_owned(),
         })
     }
 }
@@ -963,5 +1019,24 @@ fn validate_insertion(
         })
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn public_calls_reject_a_non_owning_thread() {
+        let other_thread = match thread::spawn(|| thread::current().id()).join() {
+            Ok(thread_id) => thread_id,
+            Err(payload) => std::panic::resume_unwind(payload),
+        };
+        let mut core = match Core::new(CoreOptions::default()) {
+            Ok(core) => core,
+            Err(error) => std::panic::resume_unwind(Box::new(error)),
+        };
+        core.thread = other_thread;
+        assert_eq!(core.drain_diagnostics(), Err(CoreError::WrongThread));
     }
 }

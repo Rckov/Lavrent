@@ -28,13 +28,14 @@ fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
         b"html,body{margin:0}#styled{width:73px;height:11px}",
     ))
     .unwrap();
-    core.register_resource(resource(
-        "lavret:/pixel.png",
-        "image/png",
-        ResourceKind::RasterImage,
-        PNG_2X2,
-    ))
-    .unwrap();
+    let raster_resource = core
+        .register_resource(resource(
+            "lavret:/pixel.png",
+            "image/png",
+            ResourceKind::RasterImage,
+            PNG_2X2,
+        ))
+        .unwrap();
     core.register_resource(resource(
         "lavret:/shape.svg",
         "image/svg+xml",
@@ -78,6 +79,36 @@ fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
     assert_eq!(core.border_box(document, svg).unwrap().size.width, 12.0);
     assert!(core.border_box(document, text).unwrap().size.height > 20.0);
     assert!(core.drain_diagnostics().unwrap().is_empty());
+
+    core.replace_resource(
+        raster_resource,
+        resource(
+            "lavret:/pixel.png",
+            "image/png",
+            ResourceKind::RasterImage,
+            PNG_2X2,
+        ),
+    )
+    .unwrap();
+    assert!(
+        core.drain_diagnostics()
+            .unwrap()
+            .iter()
+            .any(|item| item.code == DiagnosticCode::CapabilityUnavailable)
+    );
+
+    core.remove_resource(raster_resource).unwrap();
+    let diagnostics = core.drain_diagnostics().unwrap();
+    assert!(
+        diagnostics
+            .iter()
+            .any(|item| item.code == DiagnosticCode::MissingResource)
+    );
+    assert!(
+        diagnostics
+            .iter()
+            .any(|item| item.code == DiagnosticCode::CapabilityUnavailable)
+    );
 }
 
 #[test]
