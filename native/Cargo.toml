@@ -1,0 +1,19 @@
+[package]
+name = "engine-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.91"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+engine-core = { path = ".." }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+warnings = "deny"
+
+[lints.clippy]
+all = "deny"

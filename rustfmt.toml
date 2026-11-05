@@ -1,0 +1,13 @@
+# Rust 2024 formatting for the rendering core.
+# Uses stable rustfmt options only.
+edition = "2024"
+style_edition = "2024"
+
+max_width = 100
+hard_tabs = false
+tab_spaces = 4
+use_small_heuristics = "Default"
+
+reorder_imports = true
+reorder_modules = true
+use_field_init_shorthand = true
