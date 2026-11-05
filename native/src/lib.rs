@@ -7,9 +7,12 @@ use std::slice::from_raw_parts;
 
 use lavret_core::{
     Core, CoreError, CoreOptions, DocumentHandle, HandleError, NodeHandle, PowerPreference,
+    RenderTargetHandle, ResourceHandle,
 };
 
 mod document;
+mod rendering;
+mod resources;
 
 pub const LAVRET_STATUS_OK: u32 = 0;
 pub const LAVRET_STATUS_INVALID_ARGUMENT: u32 = 1;
@@ -38,6 +41,11 @@ pub const LAVRET_POWER_HIGH: u32 = 1;
 
 pub const LAVRET_COLOR_LIGHT: u32 = 0;
 pub const LAVRET_COLOR_DARK: u32 = 1;
+
+pub const LAVRET_RESOURCE_AUTHOR_STYLESHEET: u32 = 0;
+pub const LAVRET_RESOURCE_RASTER_IMAGE: u32 = 1;
+pub const LAVRET_RESOURCE_SVG_DOCUMENT: u32 = 2;
+pub const LAVRET_RESOURCE_FONT: u32 = 3;
 
 thread_local! {
     static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
@@ -100,10 +108,35 @@ pub struct LavretHandleArray {
     pub length: usize,
 }
 
+#[repr(C)]
+pub struct LavretResourceSource {
+    pub uri: LavretStringView,
+    pub media_type: LavretStringView,
+    pub kind: u32,
+    pub data: *const u8,
+    pub length: usize,
+}
+
+#[derive(Clone, Copy)]
+#[repr(C)]
+pub struct LavretRenderResult {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[repr(C)]
+pub struct LavretReadback {
+    pub width: u32,
+    pub height: u32,
+    pub pixels: LavretBytes,
+}
+
 pub struct LavretCore {
     inner: Core,
     documents: HandleRegistry<DocumentHandle>,
     nodes: HandleRegistry<NodeHandle>,
+    resources: HandleRegistry<ResourceHandle>,
+    render_targets: HandleRegistry<RenderTargetHandle>,
 }
 
 struct HandleRegistry<T> {
@@ -234,7 +267,7 @@ fn power_preference(value: u32) -> Result<PowerPreference, NativeError> {
     }
 }
 
-fn owned_bytes(bytes: Vec<u8>) -> LavretBytes {
+pub(crate) fn owned_bytes(bytes: Vec<u8>) -> LavretBytes {
     if bytes.is_empty() {
         return LavretBytes {
             data: ptr::null_mut(),
@@ -385,6 +418,8 @@ pub unsafe extern "C" fn lavret_core_new(
             inner: Core::new(options)?,
             documents: HandleRegistry::default(),
             nodes: HandleRegistry::default(),
+            resources: HandleRegistry::default(),
+            render_targets: HandleRegistry::default(),
         };
         // SAFETY: required by the exported function contract.
         unsafe { write_output(output, Box::into_raw(Box::new(core))) }
