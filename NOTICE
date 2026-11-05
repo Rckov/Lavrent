@@ -1,0 +1,31 @@
+THIRD-PARTY NOTICES
+
+This project uses third-party software. Exact versions and sources are recorded in Cargo.lock.
+
+MIT or Apache-2.0
+  Blitz, html5ever, AnyRender, wgpu, Parley, Fontique, Fontations, Vello,
+  Glifo, Peniko, Kurbo, color, usvg, image, and Windows Rust projections.
+
+MIT
+  Taffy, HarfRust, and wuff.
+
+MPL-2.0
+  Stylo, selectors, Stylo DOM, Stylo traits, and Stylo atoms.
+
+MIT or Apache-2.0 or MPL-2.0
+  stylo_taffy.
+
+Unicode-3.0
+  ICU4X libraries and compiled Unicode data.
+
+Bitstream Vera font license
+  tests/fixtures/DejaVuSans.woff2, including the public-domain Arev changes.
+
+Stylo is used without modifying or vendoring its source. MPL-2.0 applies only
+to covered upstream files and does not apply to unrelated project files.
+
+The DejaVu Sans file is used only by the font-loading integration test and is
+not included in the library artifact.
+
+Binary distributions must include the applicable upstream license texts,
+copyright notices, and the Unicode permission notice.
