@@ -1,5 +1,5 @@
 [package]
-name = "lavret-native"
+name = "engine-native"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.91"
@@ -9,7 +9,7 @@ publish = false
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-lavret-core = { path = ".." }
+engine-core = { path = ".." }
 
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"

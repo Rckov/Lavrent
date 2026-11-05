@@ -177,7 +177,7 @@ impl RendererState {
             gpu.device_handle
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor {
-                    label: Some("Lavret render"),
+                    label: Some("document render"),
                 });
         let image_manager = ImageManager::new(
             &mut gpu.renderer,
@@ -284,7 +284,7 @@ impl RendererState {
             });
         }
         let buffer = gpu.device_handle.device.create_buffer(&BufferDescriptor {
-            label: Some("Lavret RGBA8 readback"),
+            label: Some("RGBA8 readback"),
             size: buffer_size,
             usage: BufferUsages::COPY_DST | BufferUsages::MAP_READ,
             mapped_at_creation: false,
@@ -293,7 +293,7 @@ impl RendererState {
             gpu.device_handle
                 .device
                 .create_command_encoder(&CommandEncoderDescriptor {
-                    label: Some("Lavret RGBA8 readback copy"),
+                    label: Some("RGBA8 readback copy"),
                 });
         encoder.copy_texture_to_buffer(
             TexelCopyTextureInfo {
@@ -376,7 +376,7 @@ impl RendererState {
         .map_err(|_| CoreError::AdapterUnavailable)?;
         let adapter_info = adapter.get_info();
         let (device, queue) = pollster::block_on(adapter.request_device(&DeviceDescriptor {
-            label: Some("Lavret device"),
+            label: Some("rendering device"),
             ..DeviceDescriptor::default()
         }))
         .map_err(|error| CoreError::DeviceCreation {
@@ -577,7 +577,7 @@ fn dimension_u16(value: u32) -> Result<u16, CoreError> {
 
 fn create_texture(device: &wgpu::Device, width: u32, height: u32) -> Texture {
     device.create_texture(&TextureDescriptor {
-        label: Some("Lavret offscreen target"),
+        label: Some("offscreen render target"),
         size: Extent3d {
             width,
             height,
@@ -595,7 +595,7 @@ fn create_texture(device: &wgpu::Device, width: u32, height: u32) -> Texture {
 fn target_capacity_error() -> CoreError {
     CoreError::ResourceLimit {
         resource: "render target".to_owned(),
-        limit: "Lavret render-target handle capacity".to_owned(),
+        limit: "render-target handle capacity".to_owned(),
     }
 }
 

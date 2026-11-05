@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use lavret_core::{
+use engine_core::{
     Core, CoreError, CoreOptions, DiagnosticCode, DocumentSource, ResourceKind, ResourceSource,
     Viewport,
 };
@@ -22,7 +22,7 @@ fn resource(uri: &str, media_type: &str, kind: ResourceKind, bytes: &[u8]) -> Re
 fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
     let mut core = Core::new(CoreOptions::default()).unwrap();
     core.register_resource(resource(
-        "lavret:/style.css",
+        "memory:/style.css",
         "text/css",
         ResourceKind::AuthorStylesheet,
         b"html,body{margin:0}#styled{width:73px;height:11px}",
@@ -30,21 +30,21 @@ fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
     .unwrap();
     let raster_resource = core
         .register_resource(resource(
-            "lavret:/pixel.png",
+            "memory:/pixel.png",
             "image/png",
             ResourceKind::RasterImage,
             PNG_2X2,
         ))
         .unwrap();
     core.register_resource(resource(
-        "lavret:/shape.svg",
+        "memory:/shape.svg",
         "image/svg+xml",
         ResourceKind::SvgDocument,
         br#"<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"><rect width="12" height="8" fill="red"/></svg>"#,
     ))
     .unwrap();
     core.register_resource(resource(
-        "lavret:/font.woff2",
+        "memory:/font.woff2",
         "font/woff2",
         ResourceKind::Font,
         include_bytes!("fixtures/DejaVuSans.woff2"),
@@ -52,12 +52,12 @@ fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
     .unwrap();
 
     let html = r#"
-        <link rel="stylesheet" href="lavret:/style.css">
-        <style>@font-face{font-family:Fixture;src:url('lavret:/font.woff2') format('woff2')}#text{font:20px Fixture}</style>
+        <link rel="stylesheet" href="memory:/style.css">
+        <style>@font-face{font-family:Fixture;src:url('memory:/font.woff2') format('woff2')}#text{font:20px Fixture}</style>
         <div id="styled"></div>
-        <img id="raster" src="lavret:/pixel.png">
-        <img id="svg" src="lavret:/shape.svg">
-        <div id="text">Lavret مرحبا</div>
+        <img id="raster" src="memory:/pixel.png">
+        <img id="svg" src="memory:/shape.svg">
+        <div id="text">Engine مرحبا</div>
     "#;
     let document = core
         .create_document(DocumentSource::new(html), Viewport::new(300.0, 200.0, 1.0))
@@ -83,7 +83,7 @@ fn registered_stylesheet_raster_svg_and_font_are_loaded_in_memory() {
     core.replace_resource(
         raster_resource,
         resource(
-            "lavret:/pixel.png",
+            "memory:/pixel.png",
             "image/png",
             ResourceKind::RasterImage,
             PNG_2X2,
@@ -116,7 +116,7 @@ fn replacing_and_removing_resources_invalidate_documents() {
     let mut core = Core::new(CoreOptions::default()).unwrap();
     let stylesheet = core
         .register_resource(resource(
-            "lavret:/style.css",
+            "memory:/style.css",
             "text/css",
             ResourceKind::AuthorStylesheet,
             b"#box{width:40px;height:10px}",
@@ -125,7 +125,7 @@ fn replacing_and_removing_resources_invalidate_documents() {
     let document = core
         .create_document(
             DocumentSource::new(
-                "<link rel='stylesheet' href='lavret:/style.css'><div id='box'></div>",
+                "<link rel='stylesheet' href='memory:/style.css'><div id='box'></div>",
             ),
             Viewport::new(200.0, 100.0, 1.0),
         )
@@ -140,7 +140,7 @@ fn replacing_and_removing_resources_invalidate_documents() {
     core.replace_resource(
         stylesheet,
         resource(
-            "lavret:/style.css",
+            "memory:/style.css",
             "text/css",
             ResourceKind::AuthorStylesheet,
             b"#box{width:90px;height:10px}",

@@ -1,21 +1,21 @@
 use crate::{
-    LavretBytes, LavretCore, LavretReadback, LavretRenderResult, core_mut, ffi_status, owned_bytes,
-    require_output, write_output,
+    Engine, EngineBytes, EngineReadback, EngineRenderResult, borrow_core, into_owned_bytes,
+    require_output, run_ffi_call, write_output,
 };
 
 /// # Safety
 ///
 /// `output` must point to writable storage for one render target handle.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_render_target_create(
-    core: *mut LavretCore,
+pub unsafe extern "C" fn engine_render_target_create(
+    core: *mut Engine,
     width: u32,
     height: u32,
     output: *mut u64,
 ) -> u32 {
-    ffi_status(|| {
+    run_ffi_call(core, || {
+        let core = unsafe { borrow_core(core)? };
         require_output(output)?;
-        let core = unsafe { core_mut(core)? };
         let handle = core.inner.create_render_target(width, height)?;
         let handle = core.render_targets.intern(handle)?;
         unsafe { write_output(output, handle) }
@@ -24,16 +24,16 @@ pub unsafe extern "C" fn lavret_render_target_create(
 
 /// # Safety
 ///
-/// `core` must be a live pointer returned by `lavret_core_new`.
+/// `core` must be a live pointer returned by `engine_new`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_render_target_resize(
-    core: *mut LavretCore,
+pub unsafe extern "C" fn engine_render_target_resize(
+    core: *mut Engine,
     target: u64,
     width: u32,
     height: u32,
 ) -> u32 {
-    ffi_status(|| {
-        let core = unsafe { core_mut(core)? };
+    run_ffi_call(core, || {
+        let core = unsafe { borrow_core(core)? };
         let target = core.render_targets.resolve(target, "render target")?;
         core.inner.resize_render_target(target, width, height)?;
         Ok(())
@@ -42,11 +42,11 @@ pub unsafe extern "C" fn lavret_render_target_resize(
 
 /// # Safety
 ///
-/// `core` must be a live pointer returned by `lavret_core_new`.
+/// `core` must be a live pointer returned by `engine_new`.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_render_target_destroy(core: *mut LavretCore, target: u64) -> u32 {
-    ffi_status(|| {
-        let core = unsafe { core_mut(core)? };
+pub unsafe extern "C" fn engine_render_target_destroy(core: *mut Engine, target: u64) -> u32 {
+    run_ffi_call(core, || {
+        let core = unsafe { borrow_core(core)? };
         let target = core.render_targets.resolve(target, "render target")?;
         core.inner.destroy_render_target(target)?;
         Ok(())
@@ -57,22 +57,22 @@ pub unsafe extern "C" fn lavret_render_target_destroy(core: *mut LavretCore, tar
 ///
 /// `output` must point to writable storage for one render result.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_render(
-    core: *mut LavretCore,
+pub unsafe extern "C" fn engine_render(
+    core: *mut Engine,
     document: u64,
     target: u64,
-    output: *mut LavretRenderResult,
+    output: *mut EngineRenderResult,
 ) -> u32 {
-    ffi_status(|| {
+    run_ffi_call(core, || {
+        let core = unsafe { borrow_core(core)? };
         require_output(output)?;
-        let core = unsafe { core_mut(core)? };
         let document = core.documents.resolve(document, "document")?;
         let target = core.render_targets.resolve(target, "render target")?;
         let result = core.inner.render(document, target)?;
         unsafe {
             write_output(
                 output,
-                LavretRenderResult {
+                EngineRenderResult {
                     width: result.width,
                     height: result.height,
                 },
@@ -85,23 +85,23 @@ pub unsafe extern "C" fn lavret_render(
 ///
 /// `output` must point to writable storage for one readback result.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_render_target_readback_rgba8(
-    core: *mut LavretCore,
+pub unsafe extern "C" fn engine_render_target_readback_rgba8(
+    core: *mut Engine,
     target: u64,
-    output: *mut LavretReadback,
+    output: *mut EngineReadback,
 ) -> u32 {
-    ffi_status(|| {
+    run_ffi_call(core, || {
+        let core = unsafe { borrow_core(core)? };
         require_output(output)?;
-        let core = unsafe { core_mut(core)? };
         let target = core.render_targets.resolve(target, "render target")?;
         let readback = core.inner.readback_rgba8(target)?;
         unsafe {
             write_output(
                 output,
-                LavretReadback {
+                EngineReadback {
                     width: readback.width,
                     height: readback.height,
-                    pixels: owned_bytes(readback.pixels),
+                    pixels: into_owned_bytes(readback.pixels),
                 },
             )
         }
@@ -110,11 +110,11 @@ pub unsafe extern "C" fn lavret_render_target_readback_rgba8(
 
 /// # Safety
 ///
-/// `readback` must be empty or have been returned by Lavret and not freed before.
+/// `readback` must be empty or have been returned by the native library and not freed before.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lavret_readback_free(readback: LavretReadback) {
+pub unsafe extern "C" fn engine_readback_free(readback: EngineReadback) {
     unsafe {
-        crate::lavret_bytes_free(LavretBytes {
+        crate::engine_bytes_free(EngineBytes {
             data: readback.pixels.data,
             length: readback.pixels.length,
         });

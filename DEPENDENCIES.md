@@ -24,14 +24,14 @@ The locked metadata contains the root crate plus 374 dependency packages. Materi
 | wgpu | `30.0.1`, crates.io registry |
 | image / usvg / wuff | `0.25.10` / `0.48.1` / `0.2.9`, crates.io registry |
 
-Direct feature resolution is limited to the concrete interfaces named by Lavret:
+Direct feature resolution is limited to the interfaces used by the core:
 
 - `blitz-dom`: `system-fonts`, `complex-scripts`, `svg`, `woff`, `text-transform-icu`, `floats`, `writing-mode`, and `scrollbars`;
 - `blitz-paint`: `svg` and `scrollbars`;
 - `blitz-html` and `blitz-traits`: no optional features;
 - `anyrender_vello_hybrid`: no optional features, so `webgl` and frame-time logging are disabled;
 - `vello_gpu`: the selected wgpu/text path; no WebGL feature;
-- `keyboard-types`, `pollster`, `url`, `wgpu`, and `wgpu_context`: only because Lavret names their input, synchronous initialization, URI, GPU, or device-context interfaces.
+- `keyboard-types`, `pollster`, `url`, `wgpu`, and `wgpu_context`: input, synchronous initialization, URI, GPU, and device-context interfaces.
 
 Blitz identifies AnyRender transitively by `branch=main`. Cargo treats the branch and an exact `rev` from the same canonical Git repository as different source identities, while also rejecting a same-source patch from that branch identity to the revision. Using a direct revision would therefore create incompatible duplicate AnyRender types. The manifest retains the required branch identity, and `Cargo.lock` fixes that identity to `ccb524eac2d738ec56e33d40ff89f435a0ead16d`. Every production and validation command uses `--locked`, so Cargo cannot follow a later branch head. No other Git dependency is branch-based.
 

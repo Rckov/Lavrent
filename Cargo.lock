@@ -689,6 +689,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "engine-core"
+version = "0.1.0"
+dependencies = [
+ "anyrender",
+ "anyrender_vello_hybrid",
+ "blitz-dom",
+ "blitz-html",
+ "blitz-paint",
+ "blitz-traits",
+ "keyboard-types",
+ "pollster",
+ "url",
+ "vello_gpu",
+ "wgpu",
+ "wgpu_context",
+]
+
+[[package]]
+name = "engine-native"
+version = "0.1.0"
+dependencies = [
+ "engine-core",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1396,31 +1421,6 @@ checksum = "b5baa5e9ff84f1aefd264e6869907646538a52147a755d494517a8007fb48733"
 dependencies = [
  "regex-automata",
  "rustversion",
-]
-
-[[package]]
-name = "lavret-core"
-version = "0.1.0"
-dependencies = [
- "anyrender",
- "anyrender_vello_hybrid",
- "blitz-dom",
- "blitz-html",
- "blitz-paint",
- "blitz-traits",
- "keyboard-types",
- "pollster",
- "url",
- "vello_gpu",
- "wgpu",
- "wgpu_context",
-]
-
-[[package]]
-name = "lavret-native"
-version = "0.1.0"
-dependencies = [
- "lavret-core",
 ]
 
 [[package]]

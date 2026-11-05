@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use lavret_core::{
+use engine_core::{
     Core, CoreError, CoreOptions, DiagnosticCode, DocumentSource, HandleError, ResourceKind,
     ResourceSource, Rgba8Readback, Viewport,
 };
@@ -20,14 +20,14 @@ const PNG_2X2: &[u8] = &[
 fn offscreen_render_and_explicit_readback_cover_paint_features() {
     let mut core = Core::new(CoreOptions::default()).unwrap();
     core.register_resource(ResourceSource::new(
-        "lavret:/pixel.png",
+        "memory:/pixel.png",
         "image/png",
         ResourceKind::RasterImage,
         PNG_2X2,
     ))
     .unwrap();
     core.register_resource(ResourceSource::new(
-        "lavret:/shape.svg",
+        "memory:/shape.svg",
         "image/svg+xml",
         ResourceKind::SvgDocument,
         br##"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><rect width="20" height="20" fill="#00ffff"/></svg>"##,
@@ -36,9 +36,9 @@ fn offscreen_render_and_explicit_readback_cover_paint_features() {
 
     let html = r#"
         <div id="solid"></div><div id="border"></div>
-        <img id="raster" src="lavret:/pixel.png"><img id="svg" src="lavret:/shape.svg">
+        <img id="raster" src="memory:/pixel.png"><img id="svg" src="memory:/shape.svg">
         <div id="gradient"></div><div id="opacity"></div><div id="transform"></div>
-        <div id="clip"><div></div></div><div id="shadow"></div><div id="text">Lavret 😀 مرحبا e&#x301;</div>
+        <div id="clip"><div></div></div><div id="shadow"></div><div id="text">Engine 😀 مرحبا e&#x301;</div>
     "#;
     let css = r#"
         html,body{margin:0;width:256px;height:160px;background:rgb(10,20,30)}
