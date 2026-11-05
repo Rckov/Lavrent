@@ -10,7 +10,9 @@ use lavret_core::{
     RenderTargetHandle, ResourceHandle,
 };
 
+mod diagnostics;
 mod document;
+mod input;
 mod rendering;
 mod resources;
 
@@ -47,10 +49,99 @@ pub const LAVRET_RESOURCE_RASTER_IMAGE: u32 = 1;
 pub const LAVRET_RESOURCE_SVG_DOCUMENT: u32 = 2;
 pub const LAVRET_RESOURCE_FONT: u32 = 3;
 
+pub const LAVRET_INPUT_POINTER_MOVE: u32 = 0;
+pub const LAVRET_INPUT_POINTER_DOWN: u32 = 1;
+pub const LAVRET_INPUT_POINTER_UP: u32 = 2;
+pub const LAVRET_INPUT_POINTER_CANCEL: u32 = 3;
+pub const LAVRET_INPUT_POINTER_LEAVE: u32 = 4;
+pub const LAVRET_INPUT_WHEEL: u32 = 5;
+pub const LAVRET_INPUT_KEY_DOWN: u32 = 6;
+pub const LAVRET_INPUT_KEY_UP: u32 = 7;
+pub const LAVRET_INPUT_TEXT: u32 = 8;
+pub const LAVRET_INPUT_IME_PREEDIT: u32 = 9;
+pub const LAVRET_INPUT_IME_COMMIT: u32 = 10;
+pub const LAVRET_INPUT_IME_CANCEL: u32 = 11;
+pub const LAVRET_INPUT_FOCUS_GAINED: u32 = 12;
+pub const LAVRET_INPUT_FOCUS_LOST: u32 = 13;
+
+pub const LAVRET_POINTER_MOUSE: u32 = 0;
+pub const LAVRET_POINTER_TOUCH: u32 = 1;
+pub const LAVRET_POINTER_PEN: u32 = 2;
+
+pub const LAVRET_POINTER_BUTTON_PRIMARY: u32 = 0;
+pub const LAVRET_POINTER_BUTTON_SECONDARY: u32 = 1;
+pub const LAVRET_POINTER_BUTTON_AUXILIARY: u32 = 2;
+pub const LAVRET_POINTER_BUTTON_BACK: u32 = 3;
+pub const LAVRET_POINTER_BUTTON_FORWARD: u32 = 4;
+
+pub const LAVRET_POINTER_BUTTONS_PRIMARY: u32 = 1 << 0;
+pub const LAVRET_POINTER_BUTTONS_SECONDARY: u32 = 1 << 1;
+pub const LAVRET_POINTER_BUTTONS_AUXILIARY: u32 = 1 << 2;
+pub const LAVRET_POINTER_BUTTONS_BACK: u32 = 1 << 3;
+pub const LAVRET_POINTER_BUTTONS_FORWARD: u32 = 1 << 4;
+
+pub const LAVRET_MODIFIER_SHIFT: u32 = 1 << 0;
+pub const LAVRET_MODIFIER_CONTROL: u32 = 1 << 1;
+pub const LAVRET_MODIFIER_ALT: u32 = 1 << 2;
+pub const LAVRET_MODIFIER_META: u32 = 1 << 3;
+
+pub const LAVRET_KEY_UNIDENTIFIED: u32 = 0;
+pub const LAVRET_KEY_NAMED: u32 = 1;
+pub const LAVRET_KEY_CHARACTER: u32 = 2;
+
+pub const LAVRET_NAMED_KEY_ALT: u32 = 0;
+pub const LAVRET_NAMED_KEY_ARROW_DOWN: u32 = 1;
+pub const LAVRET_NAMED_KEY_ARROW_LEFT: u32 = 2;
+pub const LAVRET_NAMED_KEY_ARROW_RIGHT: u32 = 3;
+pub const LAVRET_NAMED_KEY_ARROW_UP: u32 = 4;
+pub const LAVRET_NAMED_KEY_BACKSPACE: u32 = 5;
+pub const LAVRET_NAMED_KEY_CONTROL: u32 = 6;
+pub const LAVRET_NAMED_KEY_DELETE: u32 = 7;
+pub const LAVRET_NAMED_KEY_END: u32 = 8;
+pub const LAVRET_NAMED_KEY_ENTER: u32 = 9;
+pub const LAVRET_NAMED_KEY_ESCAPE: u32 = 10;
+pub const LAVRET_NAMED_KEY_HOME: u32 = 11;
+pub const LAVRET_NAMED_KEY_INSERT: u32 = 12;
+pub const LAVRET_NAMED_KEY_META: u32 = 13;
+pub const LAVRET_NAMED_KEY_PAGE_DOWN: u32 = 14;
+pub const LAVRET_NAMED_KEY_PAGE_UP: u32 = 15;
+pub const LAVRET_NAMED_KEY_SHIFT: u32 = 16;
+pub const LAVRET_NAMED_KEY_SPACE: u32 = 17;
+pub const LAVRET_NAMED_KEY_TAB: u32 = 18;
+
+pub const LAVRET_KEY_LOCATION_STANDARD: u32 = 0;
+pub const LAVRET_KEY_LOCATION_LEFT: u32 = 1;
+pub const LAVRET_KEY_LOCATION_RIGHT: u32 = 2;
+pub const LAVRET_KEY_LOCATION_NUMPAD: u32 = 3;
+
+pub const LAVRET_UI_EVENT_CLICK: u32 = 0;
+pub const LAVRET_UI_EVENT_INPUT: u32 = 1;
+pub const LAVRET_UI_EVENT_CHANGE: u32 = 2;
+pub const LAVRET_UI_EVENT_SUBMIT: u32 = 3;
+pub const LAVRET_UI_EVENT_FOCUS: u32 = 4;
+pub const LAVRET_UI_EVENT_BLUR: u32 = 5;
+
+pub const LAVRET_UI_DATA_NONE: u32 = 0;
+pub const LAVRET_UI_DATA_TEXT: u32 = 1;
+
+pub const LAVRET_DIAGNOSTIC_INFORMATION: u32 = 0;
+pub const LAVRET_DIAGNOSTIC_WARNING: u32 = 1;
+pub const LAVRET_DIAGNOSTIC_ERROR: u32 = 2;
+
+pub const LAVRET_DIAGNOSTIC_RENDERER_INITIALIZED: u32 = 0;
+pub const LAVRET_DIAGNOSTIC_MISSING_RESOURCE: u32 = 1;
+pub const LAVRET_DIAGNOSTIC_RESOURCE_DECODE_FAILED: u32 = 2;
+pub const LAVRET_DIAGNOSTIC_RESOURCE_LIMIT_EXCEEDED: u32 = 3;
+pub const LAVRET_DIAGNOSTIC_UNSUPPORTED_PAINT: u32 = 4;
+pub const LAVRET_DIAGNOSTIC_UNSUPPORTED_OPERATION: u32 = 5;
+pub const LAVRET_DIAGNOSTIC_CAPABILITY_UNAVAILABLE: u32 = 6;
+pub const LAVRET_DIAGNOSTIC_DEVICE_LOST: u32 = 7;
+
 thread_local! {
     static LAST_ERROR: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
+#[derive(Clone, Copy)]
 #[repr(C)]
 pub struct LavretBytes {
     pub data: *mut u8,
@@ -129,6 +220,67 @@ pub struct LavretReadback {
     pub width: u32,
     pub height: u32,
     pub pixels: LavretBytes,
+}
+
+#[repr(C)]
+pub struct LavretInputEvent {
+    pub kind: u32,
+    pub pointer_id: u64,
+    pub pointer_kind: u32,
+    pub is_primary: u8,
+    pub position: LavretPoint,
+    pub button: u32,
+    pub buttons: u32,
+    pub modifiers: u32,
+    pub delta_x: f64,
+    pub delta_y: f64,
+    pub key_kind: u32,
+    pub named_key: u32,
+    pub key_text: LavretStringView,
+    pub physical_key: LavretStringView,
+    pub key_location: u32,
+    pub repeat: u8,
+    pub text: LavretStringView,
+    pub has_ime_selection: u8,
+    pub ime_selection_start: usize,
+    pub ime_selection_end: usize,
+}
+
+#[repr(C)]
+pub struct LavretUiEvent {
+    pub target: u64,
+    pub kind: u32,
+    pub data_kind: u32,
+    pub text: LavretBytes,
+}
+
+#[repr(C)]
+pub struct LavretUiEventArray {
+    pub data: *mut LavretUiEvent,
+    pub length: usize,
+}
+
+#[repr(C)]
+pub struct LavretDiagnosticContext {
+    pub key: LavretBytes,
+    pub value: LavretBytes,
+}
+
+#[repr(C)]
+pub struct LavretDiagnostic {
+    pub code: u32,
+    pub severity: u32,
+    pub document: u64,
+    pub node: u64,
+    pub message: LavretBytes,
+    pub context: *mut LavretDiagnosticContext,
+    pub context_length: usize,
+}
+
+#[repr(C)]
+pub struct LavretDiagnosticArray {
+    pub data: *mut LavretDiagnostic,
+    pub length: usize,
 }
 
 pub struct LavretCore {
@@ -283,6 +435,16 @@ pub(crate) fn owned_bytes(bytes: Vec<u8>) -> LavretBytes {
     result
 }
 
+pub(crate) unsafe fn free_owned_bytes(bytes: LavretBytes) {
+    if bytes.data.is_null() {
+        return;
+    }
+    // SAFETY: the pointer and length originate from owned_bytes.
+    let slice = slice_from_raw_parts_mut(bytes.data, bytes.length);
+    // SAFETY: owned_bytes leaked exactly one boxed slice for this pointer.
+    drop(unsafe { Box::from_raw(slice) });
+}
+
 fn owned_handles(handles: Vec<u64>) -> LavretHandleArray {
     if handles.is_empty() {
         return LavretHandleArray {
@@ -378,13 +540,7 @@ pub extern "C" fn lavret_last_error_message() -> LavretBytes {
 /// `bytes` must be empty or have been returned by Lavret and not freed before.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lavret_bytes_free(bytes: LavretBytes) {
-    if bytes.data.is_null() {
-        return;
-    }
-    // SAFETY: the pointer and length originate from owned_bytes.
-    let slice = slice_from_raw_parts_mut(bytes.data, bytes.length);
-    // SAFETY: owned_bytes leaked exactly one boxed slice for this pointer.
-    drop(unsafe { Box::from_raw(slice) });
+    unsafe { free_owned_bytes(bytes) };
 }
 
 /// # Safety
