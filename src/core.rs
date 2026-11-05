@@ -3,15 +3,16 @@ use std::sync::Arc;
 use std::thread::{self, ThreadId};
 use std::time::Duration;
 
-use blitz_dom::{LocalName, NodeId};
+use blitz_dom::{EventDriver, LocalName, NodeId};
 use blitz_html::HtmlDocument;
 
 use crate::diagnostics::{Diagnostic, DiagnosticCode, DiagnosticSeverity};
+use crate::interaction::{self, Dispatch, SemanticCapture, SemanticEvent};
 use crate::resources::ResourceStore;
 use crate::upstream;
 use crate::{
-    CoreError, CoreOptions, DocumentHandle, DocumentSource, HandleError, NodeHandle, Point, Rect,
-    ResourceHandle, ResourceSource, Viewport,
+    CoreError, CoreOptions, DocumentHandle, DocumentSource, HandleError, InputEvent, NodeHandle,
+    Point, Rect, ResourceHandle, ResourceSource, UiEvent, UiEventData, UiEventKind, Viewport,
 };
 
 pub struct Core {
@@ -21,6 +22,7 @@ pub struct Core {
     _options: CoreOptions,
     documents: Vec<DocumentSlot>,
     resources: Arc<ResourceStore>,
+    ui_events: Vec<UiEvent>,
     diagnostics: Vec<Diagnostic>,
 }
 
@@ -33,6 +35,23 @@ pub(crate) struct DocumentState {
     pub(crate) document: HtmlDocument,
     nodes: NodeStore,
     pub(crate) dirty: bool,
+    input_ready: bool,
+}
+
+impl DocumentState {
+    fn mark_dirty(&mut self) {
+        self.dirty = true;
+        self.input_ready = false;
+    }
+
+    fn mark_input_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    fn mark_resolved(&mut self) {
+        self.dirty = false;
+        self.input_ready = true;
+    }
 }
 
 struct NodeSlot {
@@ -57,6 +76,7 @@ impl Core {
             _options: options,
             documents: Vec::new(),
             resources: Arc::new(ResourceStore::default()),
+            ui_events: Vec::new(),
             diagnostics: Vec::new(),
         })
     }
@@ -74,6 +94,7 @@ impl Core {
             document,
             nodes: NodeStore::default(),
             dirty: true,
+            input_ready: false,
         };
         self.insert_document(state)
     }
@@ -111,7 +132,7 @@ impl Core {
         let state = self.document_mut(handle)?;
         state.document = replacement;
         state.nodes.invalidate_all();
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -145,7 +166,7 @@ impl Core {
             .document
             .mutate()
             .create_element(upstream::html_name(name), Vec::new());
-        state.dirty = true;
+        state.mark_dirty();
         state.nodes.handle_for(owner, document, node_id)
     }
 
@@ -158,7 +179,7 @@ impl Core {
         let owner = self.owner;
         let state = self.document_mut(document)?;
         let node_id = state.document.mutate().create_text_node(text);
-        state.dirty = true;
+        state.mark_dirty();
         state.nodes.handle_for(owner, document, node_id)
     }
 
@@ -189,7 +210,7 @@ impl Core {
             .document
             .mutate()
             .append_children(parent_id, &[child_id]);
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -226,7 +247,7 @@ impl Core {
             .document
             .mutate()
             .insert_nodes_before(anchor_id, &[node_id]);
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -282,7 +303,7 @@ impl Core {
             mutator.append_children(parent_id, &[node_id]);
         }
         drop(mutator);
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -316,7 +337,7 @@ impl Core {
                 reason: "Blitz did not remove the validated node".to_owned(),
             });
         }
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -337,7 +358,7 @@ impl Core {
             .document
             .mutate()
             .set_attribute(node_id, upstream::attribute_name(name), value);
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -357,7 +378,7 @@ impl Core {
             .document
             .mutate()
             .clear_attribute(node_id, upstream::attribute_name(name));
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -393,7 +414,7 @@ impl Core {
                 reason: "text content can be replaced only on element or text nodes".to_owned(),
             });
         }
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -406,7 +427,7 @@ impl Core {
         validate_viewport(viewport)?;
         let state = self.document_mut(document)?;
         upstream::set_viewport(&mut state.document, viewport)?;
-        state.dirty = true;
+        state.mark_dirty();
         Ok(())
     }
 
@@ -418,7 +439,7 @@ impl Core {
         self.check_thread()?;
         let state = self.document_mut(document)?;
         state.document.resolve(animation_time.as_secs_f64());
-        state.dirty = false;
+        state.mark_resolved();
         self.collect_missing_resource_diagnostics(Some(document))
     }
 
@@ -479,6 +500,64 @@ impl Core {
         self.check_thread()?;
         let source = validate_resource_source(source)?;
         self.resources.insert(self.owner, source)
+    }
+
+    pub fn dispatch_input(
+        &mut self,
+        document: DocumentHandle,
+        event: InputEvent,
+    ) -> Result<(), CoreError> {
+        self.check_thread()?;
+        let owner = self.owner;
+        let mut translated_events = Vec::new();
+        {
+            let state = self.document_mut(document)?;
+            if !state.input_ready {
+                return Err(CoreError::UnresolvedDocument);
+            }
+            let scroll = state.document.viewport_scroll();
+            match interaction::translate(event, Point::new(scroll.x, scroll.y))? {
+                Dispatch::Upstream(event) => {
+                    let capture = SemanticCapture::new(&mut translated_events);
+                    EventDriver::new(&mut state.document, capture).handle_ui_event(event);
+                    state.mark_input_dirty();
+                }
+                Dispatch::FocusGained => {}
+                Dispatch::FocusLost => {
+                    let focused = state.document.get_focussed_node_id().filter(|id| {
+                        state
+                            .document
+                            .get_node(*id)
+                            .is_some_and(|node| node.is_focussed())
+                    });
+                    state.document.clear_focus();
+                    if let Some(target) = focused {
+                        translated_events.push(SemanticEvent {
+                            target,
+                            kind: UiEventKind::Blur,
+                            data: UiEventData::None,
+                        });
+                    }
+                    state.mark_input_dirty();
+                }
+            }
+
+            let mut public_events = Vec::with_capacity(translated_events.len());
+            for event in translated_events {
+                public_events.push(UiEvent {
+                    target: state.nodes.handle_for(owner, document, event.target)?,
+                    kind: event.kind,
+                    data: event.data,
+                });
+            }
+            self.ui_events.extend(public_events);
+        }
+        Ok(())
+    }
+
+    pub fn drain_ui_events(&mut self) -> Result<Vec<UiEvent>, CoreError> {
+        self.check_thread()?;
+        Ok(std::mem::take(&mut self.ui_events))
     }
 
     pub fn replace_resource(
@@ -609,7 +688,7 @@ impl Core {
                     mutator.set_attribute(node_id, upstream::attribute_name(name), uri);
                 }
             }
-            state.dirty = true;
+            state.mark_dirty();
         }
     }
 
