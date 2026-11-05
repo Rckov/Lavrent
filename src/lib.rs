@@ -2,6 +2,7 @@
 
 #![forbid(unsafe_code)]
 
+mod core;
 mod diagnostics;
 mod document;
 mod error;
@@ -9,7 +10,9 @@ mod geometry;
 mod handles;
 mod input;
 mod resources;
+mod upstream;
 
+pub use core::Core;
 pub use diagnostics::{Diagnostic, DiagnosticCode, DiagnosticContext, DiagnosticSeverity};
 pub use document::{CoreOptions, DocumentSource, PowerPreference, Viewport};
 pub use error::{CoreError, HandleError};

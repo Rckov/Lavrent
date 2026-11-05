@@ -27,3 +27,40 @@ pub struct RenderTargetHandle {
     pub(crate) slot: u32,
     pub(crate) generation: u32,
 }
+
+impl DocumentHandle {
+    pub(crate) const fn new(owner: usize, slot: u32, generation: u32) -> Self {
+        Self {
+            owner,
+            slot,
+            generation,
+        }
+    }
+}
+
+impl NodeHandle {
+    pub(crate) const fn new(
+        owner: usize,
+        document: DocumentHandle,
+        slot: u32,
+        generation: u32,
+    ) -> Self {
+        Self {
+            owner,
+            document_slot: document.slot,
+            document_generation: document.generation,
+            slot,
+            generation,
+        }
+    }
+}
+
+impl ResourceHandle {
+    pub(crate) const fn new(owner: usize, slot: u32, generation: u32) -> Self {
+        Self {
+            owner,
+            slot,
+            generation,
+        }
+    }
+}
